@@ -1,0 +1,15 @@
+services:
+  vcenter-mcp:
+    image: giuliolibrando/vmware-vsphere-mcp-server:latest
+    container_name: vcenter-mcp
+    restart: unless-stopped
+    ports:
+      - "${MCP_PORT:-8080}:8080"
+    env_file:
+      - .env
+    environment:
+      - VCENTER_HOST=${VCENTER_HOST}
+      - VCENTER_USERNAME=${VCENTER_USERNAME}
+      - VCENTER_PASSWORD=${VCENTER_PASSWORD}
+      - VCENTER_PORT=${VCENTER_PORT:-443}
+      - VCENTER_SSL_VERIFY=${VCENTER_SSL_VERIFY:-false}
