@@ -1,112 +1,162 @@
-# vCenter MCP Server
+# vCenter MCP Server — Mac Local Version 1
 
-A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that connects Claude AI directly to VMware vSphere — letting you query and manage your vCenter infrastructure through natural language.
+A Model Context Protocol (MCP) server that connects **Claude Desktop** to VMware vCenter, letting you manage your vSphere infrastructure through natural language chat.
 
-## What you can ask Claude
+> **This is the Mac-local setup.** Claude Desktop runs on your laptop, spawns `server.py` via stdio, and reaches vCenter through a persistent SSH tunnel.
 
-> "List all powered off VMs"
-> "How much free space is left on each datastore?"
-> "What's the CPU usage on my ESXi hosts?"
-> "Create a snapshot of vm-prod-01 before the maintenance window"
-> "Are there any active alarms in vCenter?"
+---
 
-## Tools exposed
+## What You Can Do From Chat
 
-| Category | Tools |
+**Read-only queries**
+- List all VMs with power state, CPU, RAM, IP
+- Get detailed info on a specific VM
+- List all ESXi hosts with specs and utilisation
+- List datastores with capacity and free space
+- List networks and port groups
+- List VM snapshots
+- Get an inventory summary (counts)
+- Get active alarms
+
+**Actions (require confirmation)**
+- Power on / power off a VM
+- Restart a VM
+- Create a VM snapshot
+
+---
+
+## Prerequisites
+
+| Requirement | Notes |
 |---|---|
-| VMs | `list_vms`, `get_vm_details`, `power_on_vm`, `power_off_vm`, `restart_vm` |
-| Hosts | `list_hosts`, `get_host_performance` |
-| Storage | `list_datastores` |
-| Network | `list_networks` |
-| Snapshots | `list_vm_snapshots`, `create_vm_snapshot` |
-| Overview | `get_inventory_summary`, `get_alarms` |
+| macOS | Tested on macOS Sequoia |
+| Python 3.13 | Via Homebrew: `brew install python@3.13` |
+| Claude Desktop | [claude.ai/download](https://claude.ai/download) |
+| OCI VM (jump host) | For SSH tunnel to vCenter |
+| SSH key access | To the OCI jump host |
 
-Destructive operations (`power_off_vm`, `restart_vm`) require `confirm=True` — Claude will always ask before executing.
+---
 
-## Architecture
+## Installation
 
-```
-Claude (your machine)
-      │  HTTP/SSE  port 8080
-      ▼
-  MCP Server (Docker)
-      │  pyVmomi API
-      ▼
-  vCenter Server
-```
-
-## Requirements
-
-- Docker + Docker Compose
-- VMware vCenter Server (any version supported by pyVmomi)
-- Network access from the Docker host to vCenter
-
-## Setup
-
-### 1. Clone the repo
-
+**1. Clone the repo**
 ```bash
-git clone https://github.com/kmittal8/vCenter_MCP.git
+git clone <repo-url>
 cd vCenter_MCP
 ```
 
-### 2. Configure credentials
-
+**2. Install Python dependencies**
 ```bash
-cp .env.example .env
+pip3.13 install -r requirements.txt
 ```
 
-Edit `.env`:
+**3. Set up the SSH tunnel (launchd)**
 
-```env
-VCENTER_HOST=vcenter.your-domain.com
-VCENTER_USERNAME=administrator@vsphere.local
-VCENTER_PASSWORD=your_password_here
-VCENTER_PORT=443
-VCENTER_SSL_VERIFY=false
+Create `~/Library/LaunchAgents/com.vcenter.sshtunnel.plist`:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>            <string>com.vcenter.sshtunnel</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/ssh</string>
+    <string>-N</string>
+    <string>-L</string>
+    <string>10443:10.0.12.2:443</string>
+    <string>opc@&lt;YOUR_OCI_VM_IP&gt;</string>
+  </array>
+  <key>RunAtLoad</key>        <true/>
+  <key>KeepAlive</key>        <true/>
+</dict>
+</plist>
 ```
 
-### 3. Start the server
-
+Load it:
 ```bash
-docker compose up -d
+launchctl load ~/Library/LaunchAgents/com.vcenter.sshtunnel.plist
 ```
 
-Check it's running:
+**4. Configure Claude Desktop**
 
-```bash
-docker compose logs -f
-```
-
-### 4. Register with Claude
-
-Add to your Claude config file:
-
-**Claude Desktop** — `~/Library/Application Support/Claude/claude_desktop_config.json`
-
-**Claude Code** — `~/.claude/claude_desktop_config.json`
-
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
     "vcenter": {
-      "url": "http://your-server-ip:8080/sse"
+      "command": "/opt/homebrew/bin/python3.13",
+      "args": ["/Users/<you>/Documents/Chatgpt_Codex/vCenter_MCP/server.py"],
+      "env": {
+        "VCENTER_HOST":     "127.0.0.1",
+        "VCENTER_USERNAME": "administrator@vsphere.local",
+        "VCENTER_PASSWORD": "<your-password>",
+        "VCENTER_PORT":     "10443",
+        "VCENTER_SSL_VERIFY": "false"
+      }
     }
   }
 }
 ```
 
-Restart Claude. You should see the vCenter tools available.
+**5. Restart Claude Desktop**
 
-## Running on a remote server (e.g. OCI, AWS, Azure)
+The MCP server will appear in Settings → Developer. All 13 tools are auto-discovered.
 
-If your Docker host is a cloud VM, ensure:
-- Port `8080` is open in the security group / firewall
-- The VM has network access to your vCenter
-- Use the VM's public IP in the Claude config URL
+---
 
-## Security notes
+## How It Works
 
-- Keep `.env` out of version control (already in `.gitignore`)
-- Consider restricting port 8080 to your IP only in production
-- Create a read-only vCenter role for the service account if you don't need power operations
+```
+Claude Desktop  ──stdio pipe──▶  server.py  ──pyVmomi──▶  localhost:10443
+                                                                │
+                                                    SSH tunnel  │
+                                                                ▼
+                                                    OCI VM (jump host)
+                                                                │
+                                                    internal VCN│
+                                                                ▼
+                                                    vCenter (10.0.12.2:443)
+```
+
+For a full visual walkthrough, open `mac_local_version1.html` in a browser.
+
+---
+
+## Project Structure
+
+```
+vCenter_MCP/
+├── server.py               # MCP server — all 13 vCenter tools
+├── requirements.txt        # mcp[cli], pyVmomi
+└── mac_local_version1.html # Visual documentation (how it works)
+```
+
+---
+
+## Dependencies
+
+```
+mcp[cli]
+pyVmomi
+```
+
+---
+
+## Security Notes
+
+- Credentials never leave your Mac — stored only in `claude_desktop_config.json`
+- vCenter is not directly exposed; all traffic goes through the SSH tunnel
+- SSL verification is disabled for self-signed vCenter certificates (`VCENTER_SSL_VERIFY=false`)
+- Power-off and restart operations require explicit confirmation to prevent accidents
+
+---
+
+## Next Steps (Enterprise Version)
+
+A Docker-based version using OCI GenAI + LangChain + Streamlit (no Claude Desktop required) is planned. It will include:
+- Streamlit chat UI on OCI Container Instance
+- LangChain agent with OCI GenAI (Cohere Command A)
+- RAG over vCenter runbooks via OCI OpenSearch
+- All vCenter tools refactored as LangChain tools

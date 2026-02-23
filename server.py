@@ -21,7 +21,12 @@ VCENTER_PASSWORD = os.environ["VCENTER_PASSWORD"]
 VCENTER_PORT     = int(os.environ.get("VCENTER_PORT", 443))
 SSL_VERIFY       = os.environ.get("VCENTER_SSL_VERIFY", "false").lower() == "true"
 
-mcp = FastMCP("vCenter MCP Server")
+mcp = FastMCP(
+    "vCenter MCP Server",
+    host="0.0.0.0",
+    port=8080,
+    transport_security=None,
+)
 
 
 # ── vCenter connection ─────────────────────────────────────────────────────────
@@ -380,4 +385,6 @@ def get_alarms() -> str:
 # ── Entry point ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    import sys
+    transport = "sse" if "--sse" in sys.argv else "stdio"
+    mcp.run(transport=transport)
