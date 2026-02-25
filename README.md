@@ -13,7 +13,7 @@ Chat with your vCenter environment in plain English from any browser. No Claude 
 | **AI Provider** | Anthropic Claude | OCI GenAI — Cohere Command A |
 | **MCP Transport** | stdio (local pipe) | HTTP/SSE (Docker-to-Docker) |
 | **MCP Client** | Claude Desktop (built-in) | `langchain-mcp-adapters` |
-| **Runs on** | Mac laptop only | OCI VM, always-on |
+| **Runs on** | Local Machine only | OCI VM, always-on |
 | **Access** | Claude Desktop app | Any browser via `:8501` |
 | **vCenter access** | SSH tunnel from Mac | Direct VCN routing (same OCI VCN as OCVS) |
 | **RAG / Runbooks** | No | Yes — pgvector Docker container |
