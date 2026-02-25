@@ -27,19 +27,21 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-# ── EXISTING RESOURCES (do not change) ───────────────────────────────────────
-COMPARTMENT_ID="ocid1.compartment.oc1..aaaaaaaaj7w5lilu5pgyscpkgodrpuvs254ixag5wy5k27j6x5wwbeughjia"
-REGION="ap-melbourne-1"
-GENAI_REGION="ap-hyderabad-1"
+# ── EXISTING RESOURCES — fill in before running ───────────────────────────────
+COMPARTMENT_ID="YOUR_COMPARTMENT_OCID"
+REGION="ap-melbourne-1"                  # region where your OCVS/vCenter lives
+GENAI_REGION="ap-hyderabad-1"            # OCI GenAI region
 
-# Existing VCN (OCVS VCN in Melbourne)
-VCN_ID="ocid1.vcn.oc1.ap-melbourne-1.amaaaaaakwetmsaaarwrugtvsl5hap23ht5rtsbh2z25bfiqtk7bc4x3ge6a"
+# Existing VCN (OCVS VCN — must be in same region as vCenter)
+# oci network vcn list --compartment-id $COMPARTMENT_ID --region $REGION
+VCN_ID="YOUR_VCN_OCID"
 
-# Existing public subnet — VM will be placed here
-EXISTING_PUBLIC_SUBNET_ID="ocid1.subnet.oc1.ap-melbourne-1.aaaaaaaatyic2uvzlgjehwvlkj2u56juhcym7wtp36umsje3d5sbtmvcc5ja"
+# Existing public subnet in the VCN — VM will be placed here
+# oci network subnet list --compartment-id $COMPARTMENT_ID --vcn-id $VCN_ID
+EXISTING_PUBLIC_SUBNET_ID="YOUR_PUBLIC_SUBNET_OCID"
 
-# Existing route table (has IGW route — reused for PG private subnet too)
-EXISTING_RT_ID="ocid1.routetable.oc1.ap-melbourne-1.aaaaaaaaksuzdohqlholyaadxn6tnrqj4habivdkcsh4pdhrshc24cazl2eq"
+# Existing route table with internet gateway route
+EXISTING_RT_ID="YOUR_ROUTE_TABLE_OCID"
 
 # ── NEW RESOURCES CONFIG ──────────────────────────────────────────────────────
 AD="WGog:AP-MELBOURNE-1-AD-1"
@@ -75,7 +77,9 @@ VM_SL_ID=$(oci network security-list create \
 echo "  Security list: $VM_SL_ID"
 
 # Get the existing SL already on the public subnet and append our new one
-EXISTING_SL_ID="ocid1.securitylist.oc1.ap-melbourne-1.aaaaaaaaobkqd72umgzkyxfvejjs55fejopm7ecldgg5acy2cbh2e44nsmnq"
+# Existing security list already attached to the public subnet
+# oci network security-list list --compartment-id $COMPARTMENT_ID --vcn-id $VCN_ID
+EXISTING_SL_ID="YOUR_EXISTING_SECURITY_LIST_OCID"
 oci network subnet update \
   --subnet-id "$EXISTING_PUBLIC_SUBNET_ID" \
   --security-list-ids "[\"$EXISTING_SL_ID\",\"$VM_SL_ID\"]" \
