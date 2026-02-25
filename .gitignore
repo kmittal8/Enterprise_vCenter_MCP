@@ -1,6 +1,29 @@
+# Secrets — never commit
 .env
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+.venv/
+venv/
+
+# Logs
 *.log
+
+# macOS
 .DS_Store
+
+# OCI credentials (local dev)
+*.pem
+*.p8
+wallet/
+oci_config
+
+# Docker
+.docker/
+
+# IDE
+.idea/
+.vscode/

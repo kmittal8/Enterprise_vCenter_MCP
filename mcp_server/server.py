@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-vCenter MCP Server
-Exposes VMware vSphere infrastructure as tools for Claude AI
-via the Model Context Protocol (MCP).
+vCenter MCP Server — Enterprise v2
+Exposes VMware vSphere infrastructure as tools via MCP HTTP/SSE transport.
 """
 
 import ssl
@@ -340,18 +339,18 @@ def get_inventory_summary() -> str:
     """Return a high-level count of VMs, hosts, and datastores in the environment."""
     si, content = get_content()
     try:
-        vm_view = container_view(content, vim.VirtualMachine)
+        vm_view   = container_view(content, vim.VirtualMachine)
         host_view = container_view(content, vim.HostSystem)
-        ds_view = container_view(content, vim.Datastore)
+        ds_view   = container_view(content, vim.Datastore)
 
         powered_on = sum(1 for v in vm_view.view if str(v.runtime.powerState) == "poweredOn")
 
         summary = {
-            "total_vms":       len(vm_view.view),
-            "powered_on_vms":  powered_on,
-            "powered_off_vms": len(vm_view.view) - powered_on,
-            "total_hosts":     len(host_view.view),
-            "total_datastores":len(ds_view.view),
+            "total_vms":        len(vm_view.view),
+            "powered_on_vms":   powered_on,
+            "powered_off_vms":  len(vm_view.view) - powered_on,
+            "total_hosts":      len(host_view.view),
+            "total_datastores": len(ds_view.view),
         }
         vm_view.Destroy()
         host_view.Destroy()
@@ -385,6 +384,5 @@ def get_alarms() -> str:
 # ── Entry point ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    import sys
-    transport = "sse" if "--sse" in sys.argv else "stdio"
-    mcp.run(transport=transport)
+    # Enterprise v2: always run SSE transport (HTTP server on :8080)
+    mcp.run(transport="sse")

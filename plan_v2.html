@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oracle-Powered MCP for vCenter — Architecture v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ── CSS Variables ─────────────────────────────────── */
+    :root {
+      --oracle-red:    #C74634;
+      --oracle-red-dk: #a33828;
+      --oracle-red-lt: #f9ecea;
+      --navy:          #1A1F36;
+      --navy-lt:       #252c4a;
+      --white:         #ffffff;
+      --gray-lt:       #F7F7F7;
+      --gray-mid:      #e8e8e8;
+      --gray-txt:      #6b7280;
+      --text:          #1f2937;
+      --mono:          'JetBrains Mono', 'Courier New', monospace;
+      --sans:          'Inter', system-ui, sans-serif;
+      --radius:        10px;
+      --shadow:        0 4px 20px rgba(0,0,0,0.08);
+      --shadow-md:     0 8px 32px rgba(0,0,0,0.12);
+      --nav-h:         60px;
+    }
+
+    /* ── Reset & Base ──────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 16px; }
+    body {
+      font-family: var(--sans);
+      background: var(--gray-lt);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* ── Sticky Nav ────────────────────────────────────── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: var(--oracle-red);
+      height: var(--nav-h);
+      display: flex;
+      align-items: center;
+      padding: 0 2rem;
+      gap: 0;
+      box-shadow: 0 2px 12px rgba(199,70,52,0.4);
+    }
+    .nav-brand {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--white);
+      letter-spacing: 0.03em;
+      margin-right: 2rem;
+      white-space: nowrap;
+      opacity: 0.92;
+    }
+    .nav-brand span {
+      font-weight: 300;
+      opacity: 0.75;
+    }
+    .nav-links {
+      display: flex;
+      gap: 0.25rem;
+      flex-wrap: wrap;
+    }
+    .nav-links a {
+      color: rgba(255,255,255,0.85);
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 0.4rem 0.85rem;
+      border-radius: 6px;
+      transition: background 0.18s, color 0.18s;
+      white-space: nowrap;
+      letter-spacing: 0.02em;
+    }
+    .nav-links a:hover {
+      background: rgba(255,255,255,0.18);
+      color: var(--white);
+    }
+
+    /* ── Page Container ────────────────────────────────── */
+    .page { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem; }
+
+    /* ── Section Base ──────────────────────────────────── */
+    section {
+      padding: 4rem 0 3rem;
+      border-bottom: 1px solid var(--gray-mid);
+    }
+    section:last-of-type { border-bottom: none; }
+
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--oracle-red);
+      margin-bottom: 0.6rem;
+    }
+    h2 {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--navy);
+      line-height: 1.2;
+      margin-bottom: 0.75rem;
+    }
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--navy);
+      margin-bottom: 0.5rem;
+    }
+    p { color: #374151; line-height: 1.75; margin-bottom: 0.75rem; }
+    p:last-child { margin-bottom: 0; }
+
+    /* ── Section 1 — Overview ──────────────────────────── */
+    #overview { background: var(--white); }
+    .overview-hero {
+      padding: 3.5rem 3rem;
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-lt) 100%);
+      border-radius: var(--radius);
+      margin-bottom: 2.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .overview-hero::before {
+      content: '';
+      position: absolute;
+      top: -60px; right: -60px;
+      width: 280px; height: 280px;
+      background: var(--oracle-red);
+      opacity: 0.12;
+      border-radius: 50%;
+    }
+    .overview-hero::after {
+      content: '';
+      position: absolute;
+      bottom: -40px; left: 40%;
+      width: 180px; height: 180px;
+      background: var(--oracle-red);
+      opacity: 0.07;
+      border-radius: 50%;
+    }
+    .overview-hero .section-label { color: rgba(199,70,52,0.9); }
+    .overview-hero h2 {
+      color: var(--white);
+      font-size: 2.2rem;
+      margin-bottom: 0.5rem;
+    }
+    .overview-hero .subhead {
+      color: rgba(255,255,255,0.7);
+      font-size: 1rem;
+      font-weight: 400;
+      margin-bottom: 1.5rem;
+    }
+    .overview-hero p {
+      color: rgba(255,255,255,0.8);
+      max-width: 680px;
+      font-size: 0.95rem;
+    }
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-top: 1.75rem;
+    }
+    .badge {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.92);
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.35rem 0.9rem;
+      border-radius: 20px;
+      letter-spacing: 0.03em;
+      backdrop-filter: blur(4px);
+    }
+    .badge.red {
+      background: rgba(199,70,52,0.3);
+      border-color: rgba(199,70,52,0.5);
+    }
+
+    /* ── Section 2 — Architecture ──────────────────────── */
+    #architecture { background: var(--gray-lt); }
+
+    .arch-outer {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 2.5rem;
+      box-shadow: var(--shadow);
+    }
+
+    /* Browser pill at top */
+    .arch-browser {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 1.25rem;
+    }
+    .arch-box-browser {
+      background: var(--navy);
+      color: var(--white);
+      border-radius: 8px;
+      padding: 0.6rem 2rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .arch-box-browser .dot { width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.25); }
+
+    /* Arrow */
+    .arch-arrow-down {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      margin: 0.3rem 0;
+      color: var(--gray-txt);
+      font-size: 0.72rem;
+      font-weight: 500;
+    }
+    .arch-arrow-down .line {
+      width: 2px;
+      height: 28px;
+      background: linear-gradient(to bottom, var(--gray-mid), var(--oracle-red));
+    }
+    .arch-arrow-down .tip {
+      width: 0; height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 8px solid var(--oracle-red);
+    }
+    .arch-arrow-label {
+      font-size: 0.68rem;
+      color: var(--gray-txt);
+      letter-spacing: 0.05em;
+      font-weight: 600;
+      margin: 0.15rem 0;
+      text-transform: uppercase;
+    }
+
+    /* OCI VM outer box */
+    .arch-vm-box {
+      border: 2px solid var(--oracle-red);
+      border-radius: 12px;
+      padding: 1.25rem 1.25rem 1.5rem;
+      position: relative;
+      background: #fefefe;
+    }
+    .arch-vm-label {
+      position: absolute;
+      top: -13px;
+      left: 18px;
+      background: var(--oracle-red);
+      color: var(--white);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 0.2rem 0.8rem;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+    .arch-vm-ip {
+      position: absolute;
+      top: -13px;
+      right: 18px;
+      background: var(--navy);
+      color: rgba(255,255,255,0.85);
+      font-size: 0.68rem;
+      font-family: var(--mono);
+      font-weight: 500;
+      padding: 0.2rem 0.8rem;
+      border-radius: 6px;
+    }
+
+    /* Docker bridge inner box */
+    .arch-docker-box {
+      border: 2px dashed #93c5fd;
+      border-radius: 10px;
+      padding: 1.25rem;
+      background: rgba(239,246,255,0.5);
+      position: relative;
+    }
+    .arch-docker-label {
+      position: absolute;
+      top: -11px;
+      left: 14px;
+      background: #3b82f6;
+      color: var(--white);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      padding: 0.15rem 0.65rem;
+      border-radius: 5px;
+      text-transform: uppercase;
+    }
+
+    /* Containers row inside Docker */
+    .arch-containers-row {
+      display: flex;
+      gap: 1.5rem;
+      align-items: stretch;
+      margin-top: 0.5rem;
+    }
+
+    /* Individual container boxes */
+    .arch-container {
+      flex: 1;
+      border-radius: 8px;
+      padding: 1rem;
+      box-shadow: var(--shadow);
+    }
+    .arch-container.app {
+      border: 2px solid #8b5cf6;
+      background: rgba(245,243,255,0.8);
+    }
+    .arch-container.mcp {
+      border: 2px solid var(--oracle-red);
+      background: rgba(249,236,234,0.8);
+    }
+    .arch-container.pg {
+      border: 2px solid #059669;
+      background: rgba(236,253,245,0.8);
+    }
+    .arch-container-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.5rem;
+    }
+    .arch-container.app .arch-container-title { color: #6d28d9; }
+    .arch-container.mcp .arch-container-title { color: var(--oracle-red-dk); }
+    .arch-container.pg  .arch-container-title { color: #047857; }
+    .arch-container-detail {
+      font-size: 0.73rem;
+      color: var(--gray-txt);
+      line-height: 1.55;
+    }
+    .arch-container-detail code {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      background: rgba(0,0,0,0.06);
+      padding: 0.05rem 0.3rem;
+      border-radius: 3px;
+    }
+
+    /* Connector lines between containers */
+    .arch-conn-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.3rem;
+      margin: 0.6rem 0;
+    }
+    .arch-conn-line {
+      height: 2px;
+      background: linear-gradient(to right, #8b5cf6, var(--oracle-red));
+      flex: 1;
+      max-width: 80px;
+    }
+    .arch-conn-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--oracle-red);
+      background: var(--oracle-red-lt);
+      border: 1px solid rgba(199,70,52,0.2);
+      padding: 0.2rem 0.6rem;
+      border-radius: 10px;
+      white-space: nowrap;
+      text-transform: uppercase;
+    }
+    .arch-conn-label.blue {
+      color: #2563eb;
+      background: #eff6ff;
+      border-color: rgba(37,99,235,0.2);
+    }
+    .arch-conn-label.green {
+      color: #047857;
+      background: #ecfdf5;
+      border-color: rgba(4,120,87,0.2);
+    }
+
+    /* vCenter external box */
+    .arch-vcenter-ext {
+      margin-top: 0.75rem;
+      border: 2px solid #d97706;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      background: rgba(255,251,235,0.9);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .arch-vcenter-ext .title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #b45309;
+    }
+    .arch-vcenter-ext .detail {
+      font-size: 0.72rem;
+      color: #92400e;
+      font-family: var(--mono);
+    }
+
+    /* OCI GenAI external row */
+    .arch-oci-row {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+    .arch-oci-box {
+      flex: 1;
+      border: 2px solid var(--oracle-red);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      background: var(--oracle-red-lt);
+    }
+    .arch-oci-box .title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--oracle-red-dk);
+      margin-bottom: 0.25rem;
+    }
+    .arch-oci-box .detail {
+      font-size: 0.7rem;
+      color: #7f1d1d;
+      font-family: var(--mono);
+    }
+    .arch-bilateral {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 0 0.5rem;
+      gap: 0.15rem;
+    }
+    .arch-bilateral .bi-line {
+      width: 2px; height: 20px;
+      background: var(--oracle-red);
+    }
+    .arch-bilateral .bi-label {
+      font-size: 0.62rem;
+      color: var(--oracle-red);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    /* ── Section 3 — MCP ───────────────────────────────── */
+    #mcp { background: var(--white); }
+    .mcp-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+    .mcp-card {
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      box-shadow: var(--shadow);
+    }
+    .mcp-card.server {
+      border-top: 4px solid var(--oracle-red);
+      background: #fefefe;
+    }
+    .mcp-card.client {
+      border-top: 4px solid var(--navy);
+      background: #fefefe;
+    }
+    .mcp-card-tag {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+      display: inline-block;
+      padding: 0.2rem 0.65rem;
+      border-radius: 5px;
+    }
+    .mcp-card.server .mcp-card-tag {
+      background: var(--oracle-red-lt);
+      color: var(--oracle-red-dk);
+    }
+    .mcp-card.client .mcp-card-tag {
+      background: #eef2ff;
+      color: var(--navy);
+    }
+    .mcp-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: baseline;
+      margin-bottom: 0.5rem;
+      font-size: 0.85rem;
+    }
+    .mcp-row .lbl {
+      font-weight: 600;
+      color: var(--navy);
+      min-width: 90px;
+      flex-shrink: 0;
+    }
+    .mcp-row .val {
+      color: #374151;
+    }
+    .mcp-row code {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      background: var(--gray-lt);
+      border: 1px solid var(--gray-mid);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      color: var(--navy);
+    }
+    .tools-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.5rem;
+    }
+    .tool-chip {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      background: var(--oracle-red-lt);
+      border: 1px solid rgba(199,70,52,0.25);
+      color: var(--oracle-red-dk);
+      padding: 0.2rem 0.55rem;
+      border-radius: 5px;
+      font-weight: 500;
+    }
+
+    /* Call flow */
+    .callflow {
+      background: var(--navy);
+      border-radius: var(--radius);
+      padding: 2rem 2.5rem;
+      box-shadow: var(--shadow-md);
+    }
+    .callflow h3 {
+      color: var(--white);
+      font-size: 1rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .callflow h3::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255,255,255,0.15);
+    }
+    .cf-step {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      margin-bottom: 0.85rem;
+      position: relative;
+    }
+    .cf-step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      left: 16px;
+      top: 32px;
+      width: 2px;
+      height: calc(100% - 10px);
+      background: rgba(199,70,52,0.4);
+    }
+    .cf-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--oracle-red);
+      color: var(--white);
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      z-index: 1;
+    }
+    .cf-text {
+      padding-top: 0.4rem;
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.85);
+      line-height: 1.6;
+    }
+    .cf-text code {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      background: rgba(255,255,255,0.1);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      color: #86efac;
+    }
+    .cf-text strong {
+      color: var(--white);
+    }
+
+    /* ── Section 4 — Docker ────────────────────────────── */
+    #docker { background: var(--gray-lt); }
+    .docker-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+    .docker-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .docker-card-header {
+      padding: 1.1rem 1.25rem 0.9rem;
+      color: var(--white);
+      font-weight: 700;
+      font-size: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    .docker-card-header.pg    { background: linear-gradient(135deg, #065f46, #059669); }
+    .docker-card-header.mcp   { background: linear-gradient(135deg, var(--oracle-red-dk), var(--oracle-red)); }
+    .docker-card-header.app   { background: linear-gradient(135deg, #4c1d95, #7c3aed); }
+    .docker-card-header .cname { font-size: 0.72rem; opacity: 0.8; font-family: var(--mono); font-weight: 400; }
+    .docker-card-body {
+      padding: 1.25rem;
+    }
+    .docker-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.6rem;
+      font-size: 0.82rem;
+      align-items: flex-start;
+    }
+    .docker-row .lbl {
+      font-weight: 600;
+      color: var(--navy);
+      min-width: 72px;
+      flex-shrink: 0;
+    }
+    .docker-row .val { color: #374151; }
+    .docker-row code {
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      background: var(--gray-lt);
+      border: 1px solid var(--gray-mid);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      color: var(--navy);
+    }
+    .docker-row .val.small { font-size: 0.78rem; color: #4b5563; }
+    .docker-divider { border: none; border-top: 1px solid var(--gray-mid); margin: 0.85rem 0; }
+    .docker-purpose {
+      font-size: 0.8rem;
+      color: #374151;
+      line-height: 1.6;
+    }
+    .docker-purpose strong { color: var(--navy); }
+
+    /* Startup chain */
+    .startup-chain {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 1.75rem 2rem;
+      box-shadow: var(--shadow);
+    }
+    .startup-chain h3 { margin-bottom: 1.25rem; }
+    .chain-diagram {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .chain-box {
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      font-family: var(--mono);
+    }
+    .chain-box.pg    { background: #ecfdf5; border: 2px solid #059669; color: #065f46; }
+    .chain-box.mcp   { background: var(--oracle-red-lt); border: 2px solid var(--oracle-red); color: var(--oracle-red-dk); }
+    .chain-box.app   { background: #f5f3ff; border: 2px solid #7c3aed; color: #4c1d95; }
+    .chain-arrow { font-size: 1.2rem; color: var(--gray-txt); }
+    .chain-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: #059669;
+      text-transform: uppercase;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      padding: 0.15rem 0.55rem;
+      border-radius: 4px;
+    }
+    .chain-merge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.2rem;
+    }
+    .chain-merge-lines {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.3rem;
+    }
+
+    /* ── Section 5 — Folder Structure ─────────────────── */
+    #folders { background: var(--white); }
+    .folder-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    .folder-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.83rem;
+    }
+    .folder-table thead tr {
+      background: var(--navy);
+      color: var(--white);
+    }
+    .folder-table thead th {
+      padding: 0.7rem 1rem;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .folder-table th:first-child { width: 38%; }
+    .folder-table tbody tr:nth-child(even) { background: var(--gray-lt); }
+    .folder-table tbody tr:hover { background: #fef3f2; }
+    .folder-table td {
+      padding: 0.65rem 1rem;
+      vertical-align: top;
+      border-bottom: 1px solid var(--gray-mid);
+    }
+    .folder-table td:first-child {
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      color: var(--navy);
+      white-space: pre;
+    }
+    .folder-table td .seq-badge {
+      display: inline-block;
+      background: var(--oracle-red);
+      color: var(--white);
+      font-size: 0.62rem;
+      font-weight: 700;
+      padding: 0.1rem 0.45rem;
+      border-radius: 4px;
+      margin-left: 0.5rem;
+      vertical-align: middle;
+      font-family: var(--sans);
+      letter-spacing: 0.04em;
+    }
+    .folder-table td .when {
+      display: block;
+      font-size: 0.71rem;
+      color: var(--oracle-red);
+      font-weight: 600;
+      margin-top: 0.2rem;
+      font-family: var(--sans);
+    }
+    .folder-table td .desc {
+      color: #374151;
+    }
+
+    /* ── Section 6 — vs Claude ─────────────────────────── */
+    #vs-claude { background: var(--gray-lt); }
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      font-size: 0.85rem;
+    }
+    .compare-table thead tr {
+      background: var(--navy);
+      color: var(--white);
+    }
+    .compare-table thead th {
+      padding: 1rem 1.25rem;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.8rem;
+      letter-spacing: 0.04em;
+    }
+    .compare-table thead th:nth-child(3) {
+      background: var(--oracle-red);
+    }
+    .compare-table tbody tr:nth-child(even) {
+      background: var(--gray-lt);
+    }
+    .compare-table tbody tr:nth-child(odd) {
+      background: var(--white);
+    }
+    .compare-table tbody tr:hover {
+      background: #fef3f2;
+    }
+    .compare-table td {
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--gray-mid);
+      vertical-align: middle;
+    }
+    .compare-table td:first-child {
+      font-weight: 600;
+      color: var(--navy);
+      white-space: nowrap;
+    }
+    .compare-table td:nth-child(2) {
+      color: #6b7280;
+    }
+    .compare-table td:nth-child(3) {
+      color: var(--navy);
+      background: rgba(199,70,52,0.04);
+      font-weight: 500;
+    }
+    .compare-table tbody tr:nth-child(even) td:nth-child(3) {
+      background: rgba(199,70,52,0.06);
+    }
+    .v2-yes {
+      color: #059669;
+      font-weight: 700;
+    }
+    .v1-no {
+      color: #9ca3af;
+    }
+
+    /* ── Code Block ────────────────────────────────────── */
+    pre {
+      background: var(--navy);
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      line-height: 1.65;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    pre .kw  { color: #93c5fd; }
+    pre .str { color: #86efac; }
+    pre .cmt { color: #6b7280; font-style: italic; }
+
+    /* ── Info Box ──────────────────────────────────────── */
+    .info-box {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      border-radius: 0 8px 8px 0;
+      padding: 1rem 1.25rem;
+      margin: 1.25rem 0;
+      font-size: 0.85rem;
+      color: #1e40af;
+    }
+    .info-box strong { color: #1d4ed8; }
+
+    /* ── Footer ────────────────────────────────────────── */
+    footer {
+      background: var(--navy);
+      color: rgba(255,255,255,0.55);
+      text-align: center;
+      padding: 2rem 1.5rem;
+      font-size: 0.8rem;
+      letter-spacing: 0.05em;
+    }
+    footer strong { color: rgba(255,255,255,0.85); }
+    footer .footer-dot { color: var(--oracle-red); margin: 0 0.6rem; }
+
+    /* ── Responsive ────────────────────────────────────── */
+    @media (max-width: 860px) {
+      nav { padding: 0 1rem; gap: 0.25rem; }
+      .nav-brand { margin-right: 0.75rem; font-size: 0.8rem; }
+      .nav-links a { font-size: 0.75rem; padding: 0.35rem 0.6rem; }
+      h2 { font-size: 1.5rem; }
+      .mcp-cards { grid-template-columns: 1fr; }
+      .docker-cards { grid-template-columns: 1fr; }
+      .arch-containers-row { flex-direction: column; }
+      .arch-oci-row { flex-direction: column; }
+      .overview-hero { padding: 2rem 1.5rem; }
+      .overview-hero h2 { font-size: 1.6rem; }
+      .callflow { padding: 1.5rem; }
+      .chain-diagram { flex-direction: column; align-items: flex-start; }
+    }
+    @media (max-width: 600px) {
+      .nav-links { display: none; }
+      section { padding: 2.5rem 0 2rem; }
+      .arch-outer { padding: 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     NAV
+══════════════════════════════════════════════════════════════ -->
+<nav>
+  <div class="nav-brand">Oracle MCP <span>/ vCenter v2</span></div>
+  <div class="nav-links">
+    <a href="#overview">Overview</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#mcp">MCP Explained</a>
+    <a href="#docker">Docker</a>
+    <a href="#folders">Folder Structure</a>
+    <a href="#vs-claude">vs Claude</a>
+  </div>
+</nav>
+
+<div class="page">
+
+<!-- ══════════════════════════════════════════════════════════
+     SECTION 1 — OVERVIEW
+══════════════════════════════════════════════════════════════ -->
+<section id="overview">
+  <div class="overview-hero">
+    <div class="section-label">Enterprise vCenter MCP — v2</div>
+    <h2>Oracle-Powered vCenter AI&nbsp;Assistant</h2>
+    <div class="subhead">Model Context Protocol (MCP) + OCI GenAI + LangChain — always-on, browser-accessible</div>
+    <p>
+      This system lets any browser user chat with an AI that can query and control a VMware
+      vCenter environment in real time. It runs entirely on Oracle Cloud Infrastructure —
+      compute, AI, and vector database — with no dependency on Claude Desktop, Anthropic, or
+      any third-party AI service.
+    </p>
+    <div class="badge-row">
+      <span class="badge red">3 Docker containers</span>
+      <span class="badge red">13 vCenter tools</span>
+      <span class="badge">Cohere Command A (OCI GenAI)</span>
+      <span class="badge">pgvector RAG</span>
+      <span class="badge">SSE transport</span>
+      <span class="badge">ap-melbourne-1</span>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     SECTION 2 — ARCHITECTURE
+══════════════════════════════════════════════════════════════ -->
+<section id="architecture">
+  <div class="section-label">Section 2</div>
+  <h2>Architecture Diagram</h2>
+  <p style="margin-bottom:2rem;">End-to-end flow from browser to vCenter, fully on OCI. All AI inference stays within Oracle Cloud.</p>
+
+  <div class="arch-outer">
+
+    <!-- Browser -->
+    <div class="arch-browser">
+      <div class="arch-box-browser">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+        &nbsp;&nbsp;Browser — port&nbsp;<strong>:8501</strong>&nbsp;&nbsp;(any device, any OS)
+      </div>
+    </div>
+
+    <!-- Arrow: HTTPS down -->
+    <div class="arch-arrow-down" style="align-items:center;margin-bottom:0.25rem;">
+      <div class="arch-arrow-label">HTTPS</div>
+      <div class="line"></div>
+      <div class="tip"></div>
+    </div>
+
+    <!-- OCI VM outer box -->
+    <div class="arch-vm-box">
+      <div class="arch-vm-label">OCI VM — ap-melbourne-1</div>
+      <div class="arch-vm-ip">168.138.29.209</div>
+
+      <div style="height:1rem;"></div>
+
+      <!-- Docker bridge -->
+      <div class="arch-docker-box">
+        <div class="arch-docker-label">Docker bridge network: vcenter_net</div>
+
+        <div style="height:0.75rem;"></div>
+
+        <!-- Three containers row -->
+        <div class="arch-containers-row">
+
+          <!-- app container -->
+          <div class="arch-container app">
+            <div class="arch-container-title">vcenter_app</div>
+            <div class="arch-container-detail">
+              <strong>Streamlit</strong> chat UI<br/>
+              <strong>LangGraph</strong> ReAct agent<br/>
+              <strong>LangChain</strong> + MCP client<br/>
+              <strong>OCI GenAI</strong> calls<br/>
+              port <code>:8501</code>
+            </div>
+          </div>
+
+          <!-- SSE connector -->
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.3rem;padding:0 0.25rem;">
+            <div class="arch-conn-label">SSE&nbsp;:8080</div>
+            <div style="display:flex;align-items:center;gap:0.2rem;">
+              <div style="height:2px;width:28px;background:linear-gradient(to right,#8b5cf6,var(--oracle-red));"></div>
+              <span style="font-size:1rem;color:var(--oracle-red);">⇆</span>
+              <div style="height:2px;width:28px;background:linear-gradient(to right,var(--oracle-red),#8b5cf6);"></div>
+            </div>
+          </div>
+
+          <!-- mcp_server container -->
+          <div class="arch-container mcp">
+            <div class="arch-container-title">vcenter_mcp_server</div>
+            <div class="arch-container-detail">
+              <strong>FastMCP</strong> SSE server<br/>
+              <strong>pyVmomi</strong> vCenter SDK<br/>
+              13 vCenter tools<br/>
+              port <code>:8080</code>
+            </div>
+          </div>
+
+          <!-- SQL connector -->
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.3rem;padding:0 0.25rem;margin-left:auto;">
+            <div class="arch-conn-label green">SQL&nbsp;:5432</div>
+            <div style="display:flex;align-items:center;gap:0.2rem;">
+              <div style="height:2px;width:20px;background:linear-gradient(to right,#8b5cf6,#059669);"></div>
+              <span style="font-size:0.9rem;color:#059669;">↕</span>
+              <div style="height:2px;width:20px;background:linear-gradient(to right,#059669,#8b5cf6);"></div>
+            </div>
+          </div>
+
+          <!-- postgres container -->
+          <div class="arch-container pg">
+            <div class="arch-container-title">vcenter_postgres</div>
+            <div class="arch-container-detail">
+              <code>pgvector/pgvector:pg16</code><br/>
+              Vector embeddings<br/>
+              Runbook RAG store<br/>
+              port <code>:5432</code> internal
+            </div>
+          </div>
+
+        </div><!-- /arch-containers-row -->
+
+        <!-- vCenter arrow + box -->
+        <div style="display:flex;flex-direction:column;align-items:flex-end;margin-top:0.9rem;padding-right:calc(33% + 1.5rem);">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:0;margin-bottom:0.2rem;">
+            <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.05em;color:#b45309;text-transform:uppercase;margin-bottom:0.15rem;">HTTPS :443</div>
+            <div style="width:2px;height:22px;background:linear-gradient(to bottom,var(--oracle-red),#d97706);"></div>
+            <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid #d97706;"></div>
+          </div>
+          <div class="arch-vcenter-ext" style="width:100%;">
+            <div>
+              <div class="title">vCenter — OCVS SDDC</div>
+              <div class="detail">10.0.12.2 &nbsp;|&nbsp; ap-melbourne-1 &nbsp;|&nbsp; port 443</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /arch-docker-box -->
+
+    </div><!-- /arch-vm-box -->
+
+    <!-- Bilateral arrow to OCI GenAI -->
+    <div style="display:flex;flex-direction:column;align-items:center;margin:0.4rem 0;">
+      <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.06em;color:var(--oracle-red);text-transform:uppercase;margin-bottom:0.15rem;">HTTPS — OCI GenAI API</div>
+      <div style="width:2px;height:24px;background:linear-gradient(to bottom,var(--oracle-red),var(--oracle-red-lt));"></div>
+      <span style="font-size:1.1rem;color:var(--oracle-red);">⇅</span>
+      <div style="width:2px;height:8px;background:var(--oracle-red-lt);"></div>
+    </div>
+
+    <!-- OCI GenAI row -->
+    <div class="arch-oci-row">
+      <div class="arch-oci-box">
+        <div class="title">OCI GenAI — ap-hyderabad-1</div>
+        <div class="detail">Cohere Command A — LLM inference</div>
+      </div>
+      <div class="arch-oci-box">
+        <div class="title">OCI GenAI — Embeddings</div>
+        <div class="detail">Cohere Embed Multilingual v3</div>
+      </div>
+    </div>
+
+    <!-- Auth note -->
+    <div class="info-box" style="margin-top:1.25rem;margin-bottom:0;">
+      <strong>Auth:</strong> The app container authenticates to OCI GenAI using
+      <strong>INSTANCE_PRINCIPAL</strong> — no API keys stored in the container.
+      IAM policy grants the VM's instance principal access to the GenAI service in ap-hyderabad-1.
+    </div>
+
+  </div><!-- /arch-outer -->
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     SECTION 3 — MCP EXPLAINED
+══════════════════════════════════════════════════════════════ -->
+<section id="mcp">
+  <div class="section-label">Section 3</div>
+  <h2>MCP Explained</h2>
+  <p style="margin-bottom:2rem;">
+    Model Context Protocol (MCP) is an open standard that lets AI models invoke typed, named
+    "tools" over a network. The <strong>server</strong> exposes tools; the <strong>client</strong>
+    (running inside the LLM agent) calls them. Here is how both sides are implemented in this project.
+  </p>
+
+  <div class="mcp-cards">
+
+    <!-- MCP Server -->
+    <div class="mcp-card server">
+      <div class="mcp-card-tag">MCP Server</div>
+      <h3>vcenter_mcp_server</h3>
+
+      <div class="mcp-row"><span class="lbl">File</span><span class="val"><code>mcp_server/server.py</code></span></div>
+      <div class="mcp-row"><span class="lbl">Container</span><span class="val"><code>vcenter_mcp_server</code>, port 8080</span></div>
+      <div class="mcp-row"><span class="lbl">Transport</span><span class="val">HTTP/SSE — Server-Sent Events (NOT stdio)</span></div>
+      <div class="mcp-row"><span class="lbl">Framework</span><span class="val">FastMCP (<code>mcp</code> library)</span></div>
+      <div class="mcp-row"><span class="lbl">On startup</span><span class="val">Binds to <code>0.0.0.0:8080</code>, waits for SSE connections from app</span></div>
+
+      <hr class="docker-divider" />
+      <div style="font-size:0.8rem;font-weight:600;color:var(--navy);margin-bottom:0.5rem;">13 vCenter Tools</div>
+      <div class="tools-grid">
+        <span class="tool-chip">list_vms</span>
+        <span class="tool-chip">get_vm_details</span>
+        <span class="tool-chip">power_on_vm</span>
+        <span class="tool-chip">power_off_vm</span>
+        <span class="tool-chip">restart_vm</span>
+        <span class="tool-chip">list_hosts</span>
+        <span class="tool-chip">get_host_performance</span>
+        <span class="tool-chip">list_datastores</span>
+        <span class="tool-chip">list_networks</span>
+        <span class="tool-chip">list_vm_snapshots</span>
+        <span class="tool-chip">create_vm_snapshot</span>
+        <span class="tool-chip">get_inventory_summary</span>
+        <span class="tool-chip">get_alarms</span>
+      </div>
+      <div style="font-size:0.78rem;color:var(--gray-txt);margin-top:0.75rem;">
+        Each tool has a name, description, and typed JSON schema parameters.
+        pyVmomi executes the call against vCenter over HTTPS :443.
+      </div>
+    </div>
+
+    <!-- MCP Client -->
+    <div class="mcp-card client">
+      <div class="mcp-card-tag">MCP Client</div>
+      <h3>vcenter_app — agent.py</h3>
+
+      <div class="mcp-row"><span class="lbl">File</span><span class="val"><code>app/agent.py</code></span></div>
+      <div class="mcp-row"><span class="lbl">Library</span><span class="val"><code>langchain-mcp-adapters</code> — <code>MultiServerMCPClient</code></span></div>
+      <div class="mcp-row"><span class="lbl">Container</span><span class="val"><code>vcenter_app</code> — connects to <code>mcp_server:8080</code></span></div>
+      <div class="mcp-row"><span class="lbl">On startup</span><span class="val">Connects to <code>http://mcp_server:8080/sse</code>, fetches all 13 tool schemas, converts to LangChain Tool objects</span></div>
+      <div class="mcp-row"><span class="lbl">Agent type</span><span class="val">LangGraph ReAct — reason + act loop</span></div>
+
+      <hr class="docker-divider" />
+      <div style="font-size:0.8rem;font-weight:600;color:var(--navy);margin-bottom:0.5rem;">How tool calling works</div>
+      <p style="font-size:0.8rem;color:#374151;line-height:1.65;">
+        The LLM (Cohere Command A) reads tool <strong>descriptions</strong> to decide which tool to
+        call. It constructs JSON arguments. The MCP client sends the call over SSE to the server.
+        The server executes it against vCenter and returns JSON. The LLM reads the JSON result and
+        formulates a human-readable answer.
+      </p>
+      <div style="font-size:0.78rem;color:var(--gray-txt);margin-top:0.6rem;">
+        <strong>Key note:</strong> No direct vCenter knowledge lives in the app container —
+        all vCenter logic is isolated in the MCP server.
+      </div>
+    </div>
+
+  </div><!-- /mcp-cards -->
+
+  <!-- Call Flow -->
+  <div class="callflow">
+    <h3>Full Request Call Flow — "Show me all powered-off VMs"</h3>
+
+    <div class="cf-step">
+      <div class="cf-num">1</div>
+      <div class="cf-text">User types <strong>"Show me all powered-off VMs"</strong> in the Streamlit chat UI at <code>http://168.138.29.209:8501</code></div>
+    </div>
+
+    <div class="cf-step">
+      <div class="cf-num">2</div>
+      <div class="cf-text"><code>streamlit_app.py</code> calls <code>invoke_agent(agent, message, history)</code> — passes conversation history</div>
+    </div>
+
+    <div class="cf-step">
+      <div class="cf-num">3</div>
+      <div class="cf-text"><code>agent.py</code> calls <code>agent.ainvoke(messages)</code> — LangGraph ReAct loop begins. <code>nest_asyncio.apply()</code> bridges Streamlit's event loop.</div>
+    </div>
+
+    <div class="cf-step">
+      <div class="cf-num">4</div>
+      <div class="cf-text"><strong>LLM reasoning:</strong> Cohere Command A (via OCI GenAI ap-hyderabad-1) reads tool descriptions and decides to call <code>list_vms</code></div>
+    </div>
+
+    <div class="cf-step">
+      <div class="cf-num">5</div>
+      <div class="cf-text">MCP client sends SSE request to <code>mcp_server:8080</code> with tool name <code>list_vms</code> and JSON arguments</div>
+    </div>
+
+    <div class="cf-step">
+      <div class="cf-num">6</div>
+      <div class="cf-text"><code>mcp_server</code> calls <strong>pyVmomi → vCenter 10.0.12.2:443</strong> — retrieves VM inventory as JSON (name, power state, host, datastore, etc.)</div>
+    </div>
+
+    <div class="cf-step">
+      <div class="cf-num">7</div>
+      <div class="cf-text">JSON VM list returned to LLM as tool result over SSE. LLM filters powered-off VMs, formats a clean natural-language response.</div>
+    </div>
+
+    <div class="cf-step" style="margin-bottom:0;">
+      <div class="cf-num">8</div>
+      <div class="cf-text">Formatted answer rendered in the Streamlit chat window. Total round-trip: typically <strong>2–5 seconds</strong>.</div>
+    </div>
+
+  </div><!-- /callflow -->
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     SECTION 4 — DOCKER
+══════════════════════════════════════════════════════════════ -->
+<section id="docker">
+  <div class="section-label">Section 4</div>
+  <h2>Docker Breakdown</h2>
+  <p style="margin-bottom:2rem;">Three containers on a single Docker bridge network. All inter-container traffic is internal — only port 8501 is exposed to the internet.</p>
+
+  <div class="docker-cards">
+
+    <!-- Postgres -->
+    <div class="docker-card">
+      <div class="docker-card-header pg">
+        <div>vcenter_postgres</div>
+        <div class="cname">pgvector/pgvector:pg16</div>
+      </div>
+      <div class="docker-card-body">
+        <div class="docker-row"><span class="lbl">Port</span><span class="val"><code>5432</code> — internal only, not exposed to host</span></div>
+        <div class="docker-row"><span class="lbl">Volume</span><span class="val"><code>pg_data</code> — named Docker volume, persistent across restarts</span></div>
+        <div class="docker-row"><span class="lbl">Init</span><span class="val"><code>scripts/pg_init.sql</code> runs once on first container start</span></div>
+        <div class="docker-row"><span class="lbl">Health</span><span class="val"><code>pg_isready -U vcenteradmin -d vcenterdb</code></span></div>
+        <hr class="docker-divider" />
+        <div class="docker-purpose">
+          <strong>Purpose:</strong> Stores vector embeddings of operational runbooks (PDFs and Markdown files).
+          The <code>app</code> container queries it using <code>langchain-postgres</code> + <code>psycopg</code> (v3)
+          for RAG — when a user asks a procedure question, relevant runbook chunks are retrieved and injected
+          into the LLM context before answering.
+        </div>
+      </div>
+    </div>
+
+    <!-- MCP Server -->
+    <div class="docker-card">
+      <div class="docker-card-header mcp">
+        <div>vcenter_mcp_server</div>
+        <div class="cname">Built: mcp_server/Dockerfile (Python 3.12-slim)</div>
+      </div>
+      <div class="docker-card-body">
+        <div class="docker-row"><span class="lbl">Port</span><span class="val"><code>8080</code> — exposed to host for debug; internal to vcenter_net for app</span></div>
+        <div class="docker-row"><span class="lbl">Depends on</span><span class="val">Nothing — starts independently</span></div>
+        <div class="docker-row"><span class="lbl">Health</span><span class="val">Python urllib check on <code>http://localhost:8080/sse</code></span></div>
+        <div class="docker-row"><span class="lbl">Key deps</span><span class="val"><code>mcp[cli]</code>, <code>pyVmomi</code>, <code>fastmcp</code></span></div>
+        <hr class="docker-divider" />
+        <div class="docker-purpose">
+          <strong>Purpose:</strong> The MCP server. Accepts SSE connections from the app container,
+          executes vCenter API calls via pyVmomi, streams results back. Contains all 13 vCenter
+          tool implementations. Python 3.12 chosen because pyVmomi has compatibility issues on 3.13-slim.
+        </div>
+      </div>
+    </div>
+
+    <!-- App -->
+    <div class="docker-card">
+      <div class="docker-card-header app">
+        <div>vcenter_app</div>
+        <div class="cname">Built: app/Dockerfile (Python 3.12-slim)</div>
+      </div>
+      <div class="docker-card-body">
+        <div class="docker-row"><span class="lbl">Port</span><span class="val"><code>8501</code> → host <code>:8501</code> — browser accessible</span></div>
+        <div class="docker-row"><span class="lbl">Depends on</span><span class="val"><code>mcp_server</code> (healthy) + <code>postgres</code> (healthy)</span></div>
+        <div class="docker-row"><span class="lbl">Start order</span><span class="val">Last — waits for both healthchecks to pass</span></div>
+        <div class="docker-row"><span class="lbl">Volume</span><span class="val"><code>./runbooks:/runbooks:ro</code> — host folder, read-only</span></div>
+        <hr class="docker-divider" />
+        <div class="docker-purpose">
+          <strong>Purpose:</strong> The "brain" — Streamlit UI + LangGraph ReAct agent + LangChain MCP client +
+          RAG retriever + OCI GenAI calls. Auth to OCI via <code>INSTANCE_PRINCIPAL</code> — no credentials stored in the image.
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /docker-cards -->
+
+  <!-- Startup chain -->
+  <div class="startup-chain">
+    <h3>Container Startup Dependency Chain</h3>
+    <div class="chain-diagram">
+      <div class="chain-box pg">vcenter_postgres</div>
+      <span class="chain-label">healthy</span>
+      <span class="chain-arrow">┐</span>
+      <div style="display:flex;flex-direction:column;gap:0.5rem;">
+        <div style="height:1px;width:32px;background:var(--gray-mid);margin-left:-1px;"></div>
+        <div style="height:1px;width:32px;background:var(--gray-mid);margin-left:-1px;"></div>
+      </div>
+      <span style="font-size:1rem;color:var(--gray-txt);">├──→</span>
+      <div class="chain-box app">vcenter_app starts</div>
+      <div style="display:flex;flex-direction:column;gap:0.35rem;margin-left:0;">
+        <span style="font-size:0.75rem;color:var(--gray-txt);">(both must be healthy first)</span>
+      </div>
+    </div>
+    <div class="chain-diagram" style="margin-top:0.6rem;">
+      <div class="chain-box mcp">vcenter_mcp_server</div>
+      <span class="chain-label">healthy</span>
+      <span class="chain-arrow">┘</span>
+    </div>
+
+    <pre style="margin-top:1.5rem;"><span class="cmt"># Start everything:</span>
+docker compose up -d
+
+<span class="cmt"># View logs:</span>
+docker compose logs -f
+
+<span class="cmt"># Ingest runbooks after postgres is healthy:</span>
+./scripts/ingest_docs.sh</pre>
+  </div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     SECTION 5 — FOLDER STRUCTURE
+══════════════════════════════════════════════════════════════ -->
+<section id="folders">
+  <div class="section-label">Section 5</div>
+  <h2>Folder Structure</h2>
+  <p style="margin-bottom:2rem;">
+    Every file and its role in the startup and request sequence. Numbers in
+    <span style="background:var(--oracle-red);color:#fff;font-size:0.72rem;padding:0.1rem 0.4rem;border-radius:4px;font-weight:700;">red</span>
+    show the order each file is first used.
+  </p>
+
+  <table class="folder-table">
+    <thead>
+      <tr>
+        <th>File / Folder</th>
+        <th>Purpose &amp; When Used</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Enterprise_vCenter_MCP/</td>
+        <td class="desc">Project root.</td>
+      </tr>
+      <tr>
+        <td>  docker-compose.yml<span class="seq-badge">3</span></td>
+        <td class="desc">
+          <span class="desc">Orchestrates 3 containers (postgres, mcp_server, app), defines vcenter_net bridge network, health checks, port mappings, volume mounts.</span>
+          <span class="when">Used at: <code>docker compose up</code></span>
+        </td>
+      </tr>
+      <tr>
+        <td>  .env</td>
+        <td class="desc">
+          <span class="desc">Secret env vars — VCENTER_HOST, VCENTER_USERNAME, VCENTER_PASSWORD, COMPARTMENT_ID, PG_CONNECTION_STRING, OCI_AUTH_TYPE. Gitignored — never committed.</span>
+          <span class="when">Used at: docker compose up (loaded by compose into all containers)</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  .env.example</td>
+        <td class="desc">Template showing all required env var names with placeholder values. Copy to .env and fill in.
+          <span class="when">Used at: initial setup only</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  plan_v1.html</td>
+        <td class="desc">Original implementation plan — v1 architecture and decisions. Reference only.</td>
+      </tr>
+      <tr>
+        <td>  plan_v2.html</td>
+        <td class="desc">This file — full architecture explainer for v2.</td>
+      </tr>
+      <tr>
+        <td>  app/</td>
+        <td class="desc">Source for the <code>vcenter_app</code> container.</td>
+      </tr>
+      <tr>
+        <td>  app/Dockerfile<span class="seq-badge">4</span></td>
+        <td class="desc">Builds vcenter_app image from Python 3.12-slim. Installs requirements.txt. Sets WORKDIR /app, CMD streamlit run streamlit_app.py.
+          <span class="when">Used at: docker compose build</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  app/requirements.txt</td>
+        <td class="desc">Python deps for app container: streamlit, langgraph, langchain, langchain-mcp-adapters, langchain-postgres, oci, psycopg[binary], nest_asyncio, etc.
+          <span class="when">Used at: docker compose build (pip install)</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  app/streamlit_app.py<span class="seq-badge">11</span></td>
+        <td class="desc">Entry point. Renders chat UI, Oracle logo in sidebar, calls invoke_agent() on each user message, streams responses.
+          <span class="when">Used at: every browser request</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  app/agent.py<span class="seq-badge">10</span></td>
+        <td class="desc">LangGraph ReAct agent. Calls nest_asyncio.apply() at top. Connects MultiServerMCPClient to mcp_server:8080/sse. Fetches 13 tool schemas. Builds agent with LLM + tools.
+          <span class="when">Used at: app container startup (once per server process)</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  app/oci_llm.py<span class="seq-badge">8</span></td>
+        <td class="desc">Instantiates ChatOCIGenAI (Cohere Command A) and OCIGenAIEmbeddings (Cohere Embed Multilingual). auth_type must be uppercase INSTANCE_PRINCIPAL or API_KEY.
+          <span class="when">Used at: agent build time</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  app/config.py<span class="seq-badge">7</span></td>
+        <td class="desc">Reads all env vars (VCENTER_*, COMPARTMENT_ID, PG_CONNECTION_STRING, OCI_AUTH_TYPE, OCI_GENAI_REGION defaults to ap-hyderabad-1).
+          <span class="when">Used at: app container startup</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  app/assets/</td>
+        <td class="desc">Static assets directory.</td>
+      </tr>
+      <tr>
+        <td>  app/assets/oracle_logo.png</td>
+        <td class="desc">Oracle logo displayed in Streamlit sidebar. Must be copied manually — binary file. Shown via st.image().
+          <span class="when">Used at: every page load</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  app/rag/</td>
+        <td class="desc">RAG pipeline — ingest and retrieval.</td>
+      </tr>
+      <tr>
+        <td>  app/rag/ingest.py<span class="seq-badge">12</span></td>
+        <td class="desc">PDF/MD → chunk → OCI embeddings → pgvector pipeline. Run manually via ingest_docs.sh after postgres is healthy.
+          <span class="when">Used at: manual runbook ingestion (not on every startup)</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  app/rag/retriever.py<span class="seq-badge">9</span></td>
+        <td class="desc">Opens pgvector connection at agent build. Wraps similarity search as a LangChain Tool (search_runbooks). Injected into ReAct agent alongside MCP tools.
+          <span class="when">Used at: agent build + every runbook query</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  mcp_server/</td>
+        <td class="desc">Source for the vcenter_mcp_server container.</td>
+      </tr>
+      <tr>
+        <td>  mcp_server/Dockerfile<span class="seq-badge">4</span></td>
+        <td class="desc">Builds mcp_server image from Python 3.12-slim. Installs mcp[cli], pyVmomi, fastmcp. CMD: python server.py.
+          <span class="when">Used at: docker compose build</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  mcp_server/requirements.txt</td>
+        <td class="desc">MCP server deps: mcp, fastmcp, pyVmomi, requests.
+          <span class="when">Used at: docker compose build</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  mcp_server/server.py<span class="seq-badge">6</span></td>
+        <td class="desc">All 13 vCenter tools implemented with FastMCP + pyVmomi. Binds SSE server on 0.0.0.0:8080. The single most critical file in the project.
+          <span class="when">Used at: mcp_server container startup + every tool call</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  runbooks/</td>
+        <td class="desc">Drop PDFs and Markdown runbooks here. Mounted read-only into app container at /runbooks. Ingested via ingest_docs.sh.
+          <span class="when">Used at: ingest time + RAG retrieval</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  scripts/</td>
+        <td class="desc">Operational scripts.</td>
+      </tr>
+      <tr>
+        <td>  scripts/deploy_oci.sh<span class="seq-badge">1</span></td>
+        <td class="desc">Provisions OCI infrastructure: NSG rules, compute VM (ap-melbourne-1), OCI PostgreSQL instance, IAM policy for INSTANCE_PRINCIPAL. Run once from local machine.
+          <span class="when">Used at: initial OCI provisioning</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  scripts/setup_vm.sh<span class="seq-badge">2</span></td>
+        <td class="desc">SSH onto OCI VM. Installs Docker CE, opens firewall port 8501, clones repo, copies .env, runs docker compose up. Run once on the VM.
+          <span class="when">Used at: initial VM bootstrap</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  scripts/ingest_docs.sh<span class="seq-badge">12</span></td>
+        <td class="desc">Runs docker exec vcenter_app python -m rag.ingest to process all files in /runbooks into pgvector. Re-run whenever runbooks are updated.
+          <span class="when">Used at: manual runbook ingestion</span>
+        </td>
+      </tr>
+      <tr>
+        <td>  scripts/pg_init.sql<span class="seq-badge">5</span></td>
+        <td class="desc">SQL run once on postgres container first start: CREATE EXTENSION IF NOT EXISTS vector; — enables pgvector in the database.
+          <span class="when">Used at: postgres container first start</span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     SECTION 6 — vs CLAUDE
+══════════════════════════════════════════════════════════════ -->
+<section id="vs-claude">
+  <div class="section-label">Section 6</div>
+  <h2>v2 vs Claude Desktop (v1)</h2>
+  <p style="margin-bottom:2rem;">
+    v1 was a proof-of-concept running locally on a Mac via Claude Desktop with an SSH tunnel to vCenter.
+    v2 is a production-grade, always-on, Oracle-native replacement with no dependency on Anthropic.
+  </p>
+
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th>Dimension</th>
+        <th>v1 — Claude Desktop (Mac Local)</th>
+        <th>v2 — Oracle Cloud (This Project)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>AI Provider</td>
+        <td>Anthropic Claude (claude-3-5-sonnet)</td>
+        <td class="v2-yes">OCI GenAI — Cohere Command A</td>
+      </tr>
+      <tr>
+        <td>MCP Transport</td>
+        <td>stdio — local process pipe</td>
+        <td class="v2-yes">HTTP/SSE — network, Docker-to-Docker</td>
+      </tr>
+      <tr>
+        <td>MCP Client</td>
+        <td>Claude Desktop (built-in)</td>
+        <td class="v2-yes">langchain-mcp-adapters (MultiServerMCPClient)</td>
+      </tr>
+      <tr>
+        <td>Runs on</td>
+        <td>Mac laptop only</td>
+        <td class="v2-yes">OCI VM — always-on</td>
+      </tr>
+      <tr>
+        <td>Access</td>
+        <td>Claude Desktop app only</td>
+        <td class="v2-yes">Any browser via http://IP:8501</td>
+      </tr>
+      <tr>
+        <td>vCenter access</td>
+        <td>SSH tunnel from Mac to vCenter</td>
+        <td class="v2-yes">Direct VCN routing — same OCI VCN as OCVS</td>
+      </tr>
+      <tr>
+        <td>RAG / Runbooks</td>
+        <td class="v1-no">No</td>
+        <td class="v2-yes">Yes — pgvector on Docker + OCI Embed</td>
+      </tr>
+      <tr>
+        <td>Always-on</td>
+        <td class="v1-no">No — laptop must be open</td>
+        <td class="v2-yes">Yes — Docker restart: unless-stopped</td>
+      </tr>
+      <tr>
+        <td>Multi-user</td>
+        <td class="v1-no">No — single Mac session</td>
+        <td class="v2-yes">Yes — Streamlit multi-session</td>
+      </tr>
+      <tr>
+        <td>Cost model</td>
+        <td>Claude API credits (Anthropic)</td>
+        <td>OCI GenAI credits — pay-per-use</td>
+      </tr>
+      <tr>
+        <td>Data sovereignty</td>
+        <td class="v1-no">Leaves OCI — goes to Anthropic (US)</td>
+        <td class="v2-yes">Stays within OCI / Australia region</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="info-box" style="margin-top:1.5rem;">
+    <strong>Why this matters for enterprise:</strong> v2 meets data residency requirements by
+    keeping all AI inference within OCI. The Cohere Command A model runs in ap-hyderabad-1 — an
+    OCI sovereign region. No user data or vCenter details ever leave Oracle Cloud Infrastructure.
+  </div>
+</section>
+
+</div><!-- /page -->
+
+<!-- ══════════════════════════════════════════════════════════
+     FOOTER
+══════════════════════════════════════════════════════════════ -->
+<footer>
+  <strong>Enterprise vCenter MCP v2</strong>
+  <span class="footer-dot">|</span>
+  Oracle Cloud Infrastructure
+  <span class="footer-dot">|</span>
+  ap-melbourne-1 (VM + OCVS)
+  <span class="footer-dot">|</span>
+  ap-hyderabad-1 (GenAI)
+  <br /><br />
+  <span style="font-size:0.72rem;opacity:0.6;">
+    mcp_server/server.py &nbsp;&middot;&nbsp; app/agent.py &nbsp;&middot;&nbsp;
+    docker-compose.yml &nbsp;&middot;&nbsp; FastMCP SSE &nbsp;&middot;&nbsp;
+    Cohere Command A &nbsp;&middot;&nbsp; pgvector
+  </span>
+</footer>
+
+</body>
+</html>

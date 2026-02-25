@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Enterprise vCenter MCP — v2 Implementation Plan</title>
+  <style>
+    :root {
+      --red:    #C74634;
+      --dark:   #1a1a2e;
+      --mid:    #16213e;
+      --card:   #0f3460;
+      --accent: #e94560;
+      --text:   #e0e0e0;
+      --sub:    #a0aec0;
+      --green:  #48bb78;
+      --yellow: #ecc94b;
+      --blue:   #63b3ed;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--dark);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.7;
+      padding: 2rem;
+    }
+    .container { max-width: 1100px; margin: 0 auto; }
+
+    /* Header */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid var(--red);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.8rem; font-weight: 700; }
+    header h1 span { color: var(--red); }
+    .badge {
+      background: var(--red);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    /* Section headers */
+    h2 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--red);
+      margin: 2.5rem 0 1rem;
+      border-left: 4px solid var(--red);
+      padding-left: 0.75rem;
+    }
+    h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--blue);
+      margin: 1.5rem 0 0.5rem;
+    }
+
+    /* Architecture box */
+    .arch-box {
+      background: var(--mid);
+      border: 1px solid #2d4a6e;
+      border-radius: 10px;
+      padding: 1.5rem;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      color: #a0e0ff;
+      white-space: pre;
+      overflow-x: auto;
+      line-height: 1.6;
+    }
+
+    /* Decision grid */
+    .decision-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .decision-card {
+      background: var(--mid);
+      border: 1px solid #2d4a6e;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+    }
+    .decision-card .label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--sub);
+      margin-bottom: 0.25rem;
+    }
+    .decision-card .choice {
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.25rem;
+    }
+    .decision-card .choice span { color: var(--red); }
+    .decision-card .rationale {
+      font-size: 0.85rem;
+      color: var(--sub);
+    }
+
+    /* File tree */
+    .file-tree {
+      background: var(--mid);
+      border: 1px solid #2d4a6e;
+      border-radius: 10px;
+      padding: 1.5rem;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      line-height: 2;
+    }
+    .file-tree .dir  { color: var(--blue); font-weight: 700; }
+    .file-tree .file { color: var(--text); }
+    .file-tree .note { color: var(--sub); font-style: italic; }
+    .file-tree .new  { color: var(--green); }
+
+    /* Phase cards */
+    .phase-list { display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; }
+    .phase-card {
+      background: var(--mid);
+      border: 1px solid #2d4a6e;
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+    .phase-num {
+      background: var(--red);
+      color: #fff;
+      font-weight: 800;
+      font-size: 1rem;
+      width: 2.2rem;
+      height: 2.2rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .phase-card h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text); }
+    .phase-card p  { font-size: 0.85rem; color: var(--sub); }
+
+    /* Code blocks */
+    pre {
+      background: #0d1117;
+      border: 1px solid #2d4a6e;
+      border-radius: 8px;
+      padding: 1.2rem;
+      font-size: 0.82rem;
+      overflow-x: auto;
+      margin: 0.75rem 0;
+      line-height: 1.6;
+    }
+    code { font-family: 'Courier New', monospace; }
+    p code, li code {
+      background: #1e2d40;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.85em;
+      color: #63b3ed;
+    }
+
+    /* Gotchas table */
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.88rem; }
+    th {
+      background: var(--mid);
+      color: var(--red);
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      letter-spacing: 1px;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 2px solid var(--red);
+    }
+    td {
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid #1e2d40;
+      color: var(--text);
+      vertical-align: top;
+    }
+    tr:hover td { background: #0f1f30; }
+    td:first-child { color: var(--yellow); font-weight: 600; }
+    td:last-child  { color: var(--green); }
+
+    /* Verification list */
+    .verify-list { list-style: none; display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+    .verify-list li {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      background: var(--mid);
+      border: 1px solid #2d4a6e;
+      border-radius: 6px;
+      padding: 0.7rem 1rem;
+      font-size: 0.9rem;
+    }
+    .verify-list li::before {
+      content: "✓";
+      color: var(--green);
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 4rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #2d4a6e;
+      text-align: center;
+      color: var(--sub);
+      font-size: 0.8rem;
+    }
+
+    p { margin: 0.5rem 0; }
+    ul, ol { padding-left: 1.5rem; }
+    li { margin: 0.35rem 0; font-size: 0.9rem; }
+    strong { color: var(--text); font-weight: 700; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div>
+      <div style="color:var(--sub);font-size:0.8rem;margin-bottom:0.4rem;">Enterprise vCenter MCP</div>
+      <h1>v2 <span>Implementation Plan</span></h1>
+    </div>
+    <span class="badge">Plan v1 &nbsp;·&nbsp; Feb 2026</span>
+  </header>
+
+  <!-- Context -->
+  <h2>Context</h2>
+  <p>
+    Transform <code>Enterprise_vCenter_MCP/</code> from a copy of the v1 Mac/Claude Desktop MCP server into a full enterprise system.
+    v1 required Claude Desktop + SSH tunnel on the user's Mac. v2 is always-on, browser-accessible, hosted on
+    <strong>OCI Compute (ap-melbourne-1)</strong>, using <strong>OCI GenAI (Cohere Command A)</strong> as the LLM,
+    <strong>LangChain</strong> as the agent/MCP client, and <strong>OCI PostgreSQL + pgvector</strong> for RAG over runbooks.
+  </p>
+
+  <!-- Architecture -->
+  <h2>Architecture</h2>
+  <div class="arch-box">Browser (team)  →  :8501
+      ↓
+[app container]   Streamlit UI + LangChain ReAct Agent
+      │   HTTP/SSE :8080 (internal Docker network)
+[mcp_server container]   FastMCP + pyVmomi
+      │   TCP 443
+Customer vCenter  (pre-established connectivity)
+
+[app container] also calls:
+  → OCI GenAI API  (Cohere Command A + Cohere Embed)    via Instance Principal
+  → OCI PostgreSQL (pgvector)                           managed DB, always-on
+      ↑ runbook PDFs/MDs ingested once on deploy</div>
+
+  <!-- Decisions -->
+  <h2>Key Decisions</h2>
+  <div class="decision-grid">
+    <div class="decision-card">
+      <div class="label">Compute</div>
+      <div class="choice"><span>OCI Compute VM</span> + Docker Compose</div>
+      <div class="rationale">Always-on, SSH access, no Container Instance complexity. VM.Standard.E4.Flex 2 OCPU / 8 GB.</div>
+    </div>
+    <div class="decision-card">
+      <div class="label">Vector Store</div>
+      <div class="choice"><span>OCI PostgreSQL + pgvector</span></div>
+      <div class="rationale">Managed DB — no volume management, no data loss on restart, enterprise-grade persistence. Replaces ChromaDB.</div>
+    </div>
+    <div class="decision-card">
+      <div class="label">LLM + Embeddings</div>
+      <div class="choice"><span>OCI GenAI Cohere</span> Command A + Embed v3</div>
+      <div class="rationale">Stays entirely within OCI tenancy. Matches reference RAG project patterns. Melbourne region.</div>
+    </div>
+    <div class="decision-card">
+      <div class="label">MCP Transport</div>
+      <div class="choice"><span>HTTP / SSE</span></div>
+      <div class="rationale">FastMCP already supports it. mcp_server runs as a proper Docker service on :8080, not a subprocess.</div>
+    </div>
+    <div class="decision-card">
+      <div class="label">MCP Client</div>
+      <div class="choice"><span>langchain-mcp-adapters</span></div>
+      <div class="rationale">Official LangChain package. MultiServerMCPClient wraps MCP tools as LangChain tools for the agent.</div>
+    </div>
+    <div class="decision-card">
+      <div class="label">OCI Auth</div>
+      <div class="choice"><span>Instance Principal</span></div>
+      <div class="rationale">No API keys on VM. Docker containers on OCI VM inherit IMDS token. api_key fallback for local dev.</div>
+    </div>
+    <div class="decision-card">
+      <div class="label">vCenter Connectivity</div>
+      <div class="choice"><span>Customer-managed</span></div>
+      <div class="rationale">Customer pre-establishes network (FastConnect / VPN / OCVS peering). App just takes host + credentials.</div>
+    </div>
+    <div class="decision-card">
+      <div class="label">Region</div>
+      <div class="choice"><span>ap-melbourne-1</span></div>
+      <div class="rationale">vCenter is there. OCI GenAI available. Low latency. All services co-located.</div>
+    </div>
+  </div>
+
+  <!-- File Structure -->
+  <h2>File Structure</h2>
+  <div class="file-tree">
+<span class="dir">Enterprise_vCenter_MCP/</span>
+├── <span class="new file">docker-compose.yml</span>          <span class="note">multi-container: mcp_server + app</span>
+├── <span class="new file">.env.example</span>                <span class="note">vCenter creds, OCI compartment, PG connection string</span>
+├── <span class="file">.gitignore</span>                  <span class="note">update existing</span>
+├── <span class="new file">plan_v1.html</span>               <span class="note">this file; future changes → plan_v2.html, etc.</span>
+│
+├── <span class="dir new">mcp_server/</span>
+│   ├── <span class="new file">Dockerfile</span>
+│   ├── <span class="new file">server.py</span>              <span class="note">copy of v1 — one change: always SSE transport</span>
+│   └── <span class="new file">requirements.txt</span>       <span class="note">mcp[cli], pyVmomi</span>
+│
+├── <span class="dir new">app/</span>
+│   ├── <span class="new file">Dockerfile</span>
+│   ├── <span class="new file">streamlit_app.py</span>       <span class="note">Streamlit chat UI + Oracle logo in sidebar</span>
+│   ├── <span class="new file">agent.py</span>               <span class="note">LangGraph ReAct agent + async bridge</span>
+│   ├── <span class="new file">config.py</span>              <span class="note">all env vars, model IDs, endpoints</span>
+│   ├── <span class="new file">oci_llm.py</span>             <span class="note">ChatOCIGenAI + OCIGenAIEmbeddings factories</span>
+│   ├── <span class="dir new">assets/</span>
+│   │   └── <span class="new file">oracle_logo.png</span>    <span class="note">Oracle logo (provided by user)</span>
+│   ├── <span class="dir new">rag/</span>
+│   │   ├── <span class="new file">__init__.py</span>
+│   │   ├── <span class="new file">ingest.py</span>          <span class="note">PDF/MD → chunk → embed → PGVector (OCI PostgreSQL)</span>
+│   │   └── <span class="new file">retriever.py</span>       <span class="note">PGVector → LangChain Tool for agent</span>
+│   └── <span class="new file">requirements.txt</span>
+│
+├── <span class="dir new">runbooks/</span>                   <span class="note">team drops PDFs/MDs here</span>
+│   └── <span class="new file">.gitkeep</span>
+│
+└── <span class="dir new">scripts/</span>
+    ├── <span class="new file">deploy_oci.sh</span>          <span class="note">OCI infra: VM, PostgreSQL DB, IAM policy</span>
+    └── <span class="new file">ingest_docs.sh</span>         <span class="note">docker exec → python -m rag.ingest</span>
+  </div>
+
+  <!-- Implementation Phases -->
+  <h2>Implementation Phases</h2>
+  <div class="phase-list">
+    <div class="phase-card">
+      <div class="phase-num">1</div>
+      <div>
+        <h4>MCP Server Container</h4>
+        <p><code>mcp_server/server.py</code> (copy v1, change entry to always SSE) + <code>Dockerfile</code> + <code>requirements.txt</code></p>
+      </div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-num">2</div>
+      <div>
+        <h4>Config + OCI LLM Layer</h4>
+        <p><code>app/config.py</code> (all env vars) + <code>app/oci_llm.py</code> (build_llm, build_embeddings factories using INSTANCE_PRINCIPAL)</p>
+      </div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-num">3</div>
+      <div>
+        <h4>RAG Pipeline</h4>
+        <p><code>app/rag/ingest.py</code> (PDF/MD → PGVector) + <code>app/rag/retriever.py</code> (PGVector → LangChain Tool). OCI PostgreSQL as vector store.</p>
+      </div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-num">4</div>
+      <div>
+        <h4>LangChain Agent</h4>
+        <p><code>app/agent.py</code> — LangGraph ReAct agent. Combines MCP tools (via langchain-mcp-adapters SSE) + search_runbooks tool. nest_asyncio bridge.</p>
+      </div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-num">5</div>
+      <div>
+        <h4>Streamlit UI</h4>
+        <p><code>app/streamlit_app.py</code> — Oracle logo in sidebar, chat history, spinner, error handling. <code>@st.cache_resource</code> on agent init.</p>
+      </div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-num">6</div>
+      <div>
+        <h4>Docker Compose + .env</h4>
+        <p><code>docker-compose.yml</code> with healthcheck dependency. <code>.env.example</code> with all required vars.</p>
+      </div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-num">7</div>
+      <div>
+        <h4>OCI Deploy Script + Ingest Script</h4>
+        <p><code>scripts/deploy_oci.sh</code> (VM + OCI PostgreSQL + IAM policy) + <code>scripts/ingest_docs.sh</code></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key Code Patterns -->
+  <h2>Key Code Patterns</h2>
+
+  <h3>OCI GenAI LLM (from reference rag_chain.py)</h3>
+  <pre><code>from langchain_community.chat_models.oci_generative_ai import ChatOCIGenAI
+
+llm = ChatOCIGenAI(
+    auth_type="INSTANCE_PRINCIPAL",   # uppercase — required
+    model_id="cohere.command-a-03-2025",
+    compartment_id=COMPARTMENT_ID,
+    service_endpoint=OCI_GENAI_ENDPOINT,
+    model_kwargs={"temperature": 0, "max_tokens": 2048},
+)</code></pre>
+
+  <h3>LangChain ↔ MCP SSE (langchain-mcp-adapters)</h3>
+  <pre><code>from langchain_mcp_adapters.client import MultiServerMCPClient
+
+async def _get_mcp_tools():
+    client = MultiServerMCPClient({
+        "vcenter": {"transport": "sse", "url": "http://mcp_server:8080/sse"}
+    })
+    return await client.get_tools()   # returns LangChain tools list</code></pre>
+
+  <h3>Async bridge (Streamlit + asyncio)</h3>
+  <pre><code>import nest_asyncio
+nest_asyncio.apply()   # patches Tornado loop — call once at module top
+
+def get_mcp_tools():
+    return asyncio.run(_get_mcp_tools())   # sync wrapper for Streamlit</code></pre>
+
+  <h3>PGVector (OCI PostgreSQL)</h3>
+  <pre><code>from langchain_postgres import PGVector
+
+vectorstore = PGVector(
+    embeddings=build_embeddings(),
+    collection_name="vcenter_runbooks",
+    connection=PG_CONNECTION_STRING,   # postgresql+psycopg://user:pass@host:5432/db
+)</code></pre>
+
+  <h3>LangGraph ReAct Agent</h3>
+  <pre><code>from langgraph.prebuilt import create_react_agent
+
+agent = create_react_agent(
+    model=build_llm(),
+    tools=mcp_tools + [rag_tool],   # vCenter tools + search_runbooks
+    prompt=SYSTEM_PROMPT,
+)</code></pre>
+
+  <h3>Oracle logo in Streamlit sidebar</h3>
+  <pre><code>with st.sidebar:
+    st.image("assets/oracle_logo.png", width=160)
+    st.title("vCenter AI Assistant")</code></pre>
+
+  <!-- Gotchas -->
+  <h2>Gotchas to Watch</h2>
+  <table>
+    <thead>
+      <tr><th>Area</th><th>Issue</th><th>Fix</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>MCP server startup</td>
+        <td>VCENTER_HOST read at module import — crashes if missing</td>
+        <td>All vCenter vars in compose env before container starts</td>
+      </tr>
+      <tr>
+        <td>FastMCP SSE URL</td>
+        <td>Endpoint is /sse not /mcp</td>
+        <td>Use http://mcp_server:8080/sse in MultiServerMCPClient</td>
+      </tr>
+      <tr>
+        <td>Streamlit + asyncio</td>
+        <td>RuntimeError: Event loop already running</td>
+        <td>nest_asyncio.apply() at top of agent.py before any async code</td>
+      </tr>
+      <tr>
+        <td>Vector store persistence</td>
+        <td>Lost on container restart if file-based (ChromaDB)</td>
+        <td>OCI PostgreSQL (managed) — data survives restarts, reboots, redeploys</td>
+      </tr>
+      <tr>
+        <td>Instance Principal in Docker</td>
+        <td>Does IMDS work from containers on OCI VM?</td>
+        <td>Yes — OCI IMDS (169.254.169.254) accessible from Docker containers</td>
+      </tr>
+      <tr>
+        <td>auth_type casing</td>
+        <td>LangChain OCI needs uppercase string</td>
+        <td>"INSTANCE_PRINCIPAL" not "instance_principal"</td>
+      </tr>
+      <tr>
+        <td>App starts before MCP ready</td>
+        <td>get_mcp_tools() fails on startup</td>
+        <td>depends_on: condition: service_healthy + healthcheck on mcp_server</td>
+      </tr>
+      <tr>
+        <td>OCI firewalld</td>
+        <td>Security list rules alone not enough on Oracle Linux 8</td>
+        <td>firewall-cmd --add-port=8501/tcp on VM after provisioning</td>
+      </tr>
+      <tr>
+        <td>psycopg version</td>
+        <td>langchain-postgres uses psycopg v3, not psycopg2</td>
+        <td>pip install psycopg[binary] (v3), not psycopg2</td>
+      </tr>
+      <tr>
+        <td>Python version</td>
+        <td>pyVmomi has wheel issues on Python 3.13 slim</td>
+        <td>Use python:3.12-slim in both Dockerfiles</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Verification -->
+  <h2>Verification Steps</h2>
+  <ul class="verify-list">
+    <li><code>docker compose build</code> — both images build without error</li>
+    <li><code>docker compose up</code> — mcp_server passes healthcheck, app starts cleanly</li>
+    <li>Open <code>http://localhost:8501</code> — Streamlit UI loads with Oracle logo in sidebar</li>
+    <li>Ask: <em>"How many VMs are powered on?"</em> — agent calls <code>get_inventory_summary</code> via MCP → live vCenter data</li>
+    <li>Drop a runbook PDF into <code>runbooks/</code>, run <code>./scripts/ingest_docs.sh</code></li>
+    <li>Ask: <em>"What's the DR procedure for cluster X?"</em> — agent calls <code>search_runbooks</code> + vCenter tools, synthesises answer</li>
+    <li>On OCI VM: verify Instance Principal works — GenAI call succeeds without any API key</li>
+  </ul>
+
+  <footer>
+    Enterprise vCenter MCP &nbsp;·&nbsp; Plan v1 &nbsp;·&nbsp; Feb 2026 &nbsp;·&nbsp; Future changes saved as plan_v2.html, plan_v3.html, etc.
+  </footer>
+
+</div>
+</body>
+</html>

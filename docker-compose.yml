@@ -1,0 +1,94 @@
+services:
+
+  # ── PostgreSQL + pgvector ───────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: vcenter_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       vcenterdb
+      POSTGRES_USER:     vcenteradmin
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./scripts/pg_init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    networks:
+      - vcenter_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vcenteradmin -d vcenterdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── MCP Server ─────────────────────────────────────────────────────────────
+  # FastMCP + pyVmomi: exposes vCenter as 13 tools over HTTP/SSE on :8080
+  mcp_server:
+    build:
+      context: ./mcp_server
+      dockerfile: Dockerfile
+    container_name: vcenter_mcp_server
+    restart: unless-stopped
+    environment:
+      VCENTER_HOST:       ${VCENTER_HOST}
+      VCENTER_USERNAME:   ${VCENTER_USERNAME}
+      VCENTER_PASSWORD:   ${VCENTER_PASSWORD}
+      VCENTER_PORT:       ${VCENTER_PORT:-443}
+      VCENTER_SSL_VERIFY: ${VCENTER_SSL_VERIFY:-false}
+    ports:
+      - "8080:8080"   # exposed for debugging; restrict in production
+    networks:
+      - vcenter_net
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8080/sse', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # ── Streamlit App ──────────────────────────────────────────────────────────
+  # LangChain agent + RAG + Streamlit UI
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: vcenter_app
+    restart: unless-stopped
+    depends_on:
+      mcp_server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      # MCP server (internal Docker network)
+      MCP_SERVER_URL:     http://mcp_server:8080/sse
+
+      # OCI GenAI
+      COMPARTMENT_ID:     ${COMPARTMENT_ID}
+      OCI_GENAI_REGION:   ${OCI_GENAI_REGION:-ap-hyderabad-1}
+      OCI_AUTH_TYPE:      ${OCI_AUTH_TYPE:-instance_principal}
+
+      # Model IDs (override if needed)
+      LLM_MODEL_ID:       ${LLM_MODEL_ID:-cohere.command-a-03-2025}
+      EMBED_MODEL_ID:     ${EMBED_MODEL_ID:-cohere.embed-multilingual-image-v3.0}
+
+      # OCI PostgreSQL — pgvector
+      PG_CONNECTION_STRING: ${PG_CONNECTION_STRING}
+      PG_COLLECTION_NAME:   ${PG_COLLECTION_NAME:-vcenter_runbooks}
+
+      # Runbooks directory (mounted below)
+      RUNBOOKS_DIR:       /runbooks
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./runbooks:/runbooks:ro   # read-only — team drops PDFs/MDs here on the host
+    networks:
+      - vcenter_net
+
+networks:
+  vcenter_net:
+    driver: bridge
+
+volumes:
+  pg_data:

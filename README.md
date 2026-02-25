@@ -1,162 +1,126 @@
-# vCenter MCP Server — Mac Local Version 1
+# Enterprise vCenter MCP — v2
 
-A Model Context Protocol (MCP) server that connects **Claude Desktop** to VMware vCenter, letting you manage your vSphere infrastructure through natural language chat.
+AI-powered vCenter operations assistant for the whole team.
+Browser-accessible, always-on, hosted on OCI.
 
-> **This is the Mac-local setup.** Claude Desktop runs on your laptop, spawns `server.py` via stdio, and reaches vCenter through a persistent SSH tunnel.
+> **v1 (local)** lives in the parent `vCenter_MCP/` folder and requires Claude Desktop + a Mac SSH tunnel.
+> This folder is **v2 (enterprise)** — no Claude Desktop, no laptop dependency.
 
----
+## Architecture
 
-## What You Can Do From Chat
+```
+Browser → :8501
+    ↓
+[app container]   Streamlit + LangChain Agent
+    │  HTTP/SSE :8080
+[mcp_server]      FastMCP + pyVmomi → vCenter
 
-**Read-only queries**
-- List all VMs with power state, CPU, RAM, IP
-- Get detailed info on a specific VM
-- List all ESXi hosts with specs and utilisation
-- List datastores with capacity and free space
-- List networks and port groups
-- List VM snapshots
-- Get an inventory summary (counts)
-- Get active alarms
+Agent also calls:
+  OCI GenAI (ap-hyderabad-1)   Cohere Command A + Embed
+  OCI PostgreSQL (pgvector)    RAG over runbooks
+```
 
-**Actions (require confirmation)**
-- Power on / power off a VM
-- Restart a VM
-- Create a VM snapshot
+## Quick Start
 
----
+### 1. Prerequisites
+- Docker + Docker Compose on the OCI VM
+- OCI PostgreSQL DB system provisioned (see `scripts/deploy_oci.sh`)
+- `pgvector` extension enabled: `CREATE EXTENSION IF NOT EXISTS vector;`
+- IAM Dynamic Group + Policy for Instance Principal GenAI access (created by deploy script)
+- Network connectivity from OCI VM to vCenter on port 443 (pre-established by you)
 
-## Prerequisites
-
-| Requirement | Notes |
-|---|---|
-| macOS | Tested on macOS Sequoia |
-| Python 3.13 | Via Homebrew: `brew install python@3.13` |
-| Claude Desktop | [claude.ai/download](https://claude.ai/download) |
-| OCI VM (jump host) | For SSH tunnel to vCenter |
-| SSH key access | To the OCI jump host |
-
----
-
-## Installation
-
-**1. Clone the repo**
+### 2. Configure
 ```bash
-git clone <repo-url>
-cd vCenter_MCP
+cp .env.example .env
+# Edit .env — set VCENTER_*, COMPARTMENT_ID, PG_CONNECTION_STRING
 ```
 
-**2. Install Python dependencies**
+### 3. Add the Oracle logo
 ```bash
-pip3.13 install -r requirements.txt
+cp /path/to/oracle_logo.png app/assets/oracle_logo.png
 ```
 
-**3. Set up the SSH tunnel (launchd)**
-
-Create `~/Library/LaunchAgents/com.vcenter.sshtunnel.plist`:
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>            <string>com.vcenter.sshtunnel</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/usr/bin/ssh</string>
-    <string>-N</string>
-    <string>-L</string>
-    <string>10443:10.0.12.2:443</string>
-    <string>opc@&lt;YOUR_OCI_VM_IP&gt;</string>
-  </array>
-  <key>RunAtLoad</key>        <true/>
-  <key>KeepAlive</key>        <true/>
-</dict>
-</plist>
-```
-
-Load it:
+### 4. Start
 ```bash
-launchctl load ~/Library/LaunchAgents/com.vcenter.sshtunnel.plist
+docker-compose up -d
+docker-compose ps        # mcp_server → healthy, app → running
 ```
 
-**4. Configure Claude Desktop**
-
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "vcenter": {
-      "command": "/opt/homebrew/bin/python3.13",
-      "args": ["/Users/<you>/Documents/Chatgpt_Codex/vCenter_MCP/server.py"],
-      "env": {
-        "VCENTER_HOST":     "127.0.0.1",
-        "VCENTER_USERNAME": "administrator@vsphere.local",
-        "VCENTER_PASSWORD": "<your-password>",
-        "VCENTER_PORT":     "10443",
-        "VCENTER_SSL_VERIFY": "false"
-      }
-    }
-  }
-}
+### 5. Ingest runbooks
+```bash
+# Drop PDFs or Markdown files into runbooks/
+./scripts/ingest_docs.sh
 ```
 
-**5. Restart Claude Desktop**
-
-The MCP server will appear in Settings → Developer. All 13 tools are auto-discovered.
-
----
-
-## How It Works
-
+### 6. Open the UI
 ```
-Claude Desktop  ──stdio pipe──▶  server.py  ──pyVmomi──▶  localhost:10443
-                                                                │
-                                                    SSH tunnel  │
-                                                                ▼
-                                                    OCI VM (jump host)
-                                                                │
-                                                    internal VCN│
-                                                                ▼
-                                                    vCenter (10.0.12.2:443)
+http://<your-vm-public-ip>:8501
 ```
-
-For a full visual walkthrough, open `mac_local_version1.html` in a browser.
-
----
 
 ## Project Structure
 
 ```
-vCenter_MCP/
-├── server.py               # MCP server — all 13 vCenter tools
-├── requirements.txt        # mcp[cli], pyVmomi
-└── mac_local_version1.html # Visual documentation (how it works)
+Enterprise_vCenter_MCP/
+├── docker-compose.yml          — multi-container orchestration
+├── .env.example                — copy to .env, fill in credentials
+├── plan_v1.html                — implementation plan (open in browser)
+│
+├── mcp_server/
+│   ├── server.py               — FastMCP, 13 vCenter tools, SSE transport
+│   ├── Dockerfile
+│   └── requirements.txt
+│
+├── app/
+│   ├── streamlit_app.py        — chat UI (Oracle logo in sidebar)
+│   ├── agent.py                — LangGraph ReAct agent
+│   ├── config.py               — all settings from env vars
+│   ├── oci_llm.py              — OCI GenAI LLM + embeddings
+│   ├── assets/oracle_logo.png  — add manually
+│   ├── rag/
+│   │   ├── ingest.py           — PDF/MD → OCI PostgreSQL pgvector
+│   │   └── retriever.py        — pgvector → LangChain Tool
+│   ├── Dockerfile
+│   └── requirements.txt
+│
+├── runbooks/                   — drop PDFs/MDs here, then run ingest
+└── scripts/
+    ├── deploy_oci.sh           — OCI infra provisioning
+    └── ingest_docs.sh          — trigger doc ingest in running container
 ```
 
----
+## vCenter Tools (13 total)
 
-## Dependencies
+| Tool | Description |
+|---|---|
+| `list_vms` | All VMs — power state, CPU, memory, IP |
+| `get_vm_details` | Detailed info for a specific VM |
+| `power_on_vm` | Power on a VM |
+| `power_off_vm` | Power off (requires confirm=True) |
+| `restart_vm` | Restart (requires confirm=True) |
+| `list_hosts` | ESXi hosts — state, CPU, memory, model |
+| `get_host_performance` | CPU/memory utilisation for a host |
+| `list_datastores` | Storage capacity and free space |
+| `list_networks` | Network and port group inventory |
+| `list_vm_snapshots` | Snapshots for a VM |
+| `create_vm_snapshot` | Create a snapshot |
+| `get_inventory_summary` | High-level VM/host/datastore counts |
+| `get_alarms` | Triggered alarms |
 
-```
-mcp[cli]
-pyVmomi
-```
+## Network Connectivity
 
----
+The OCI VM connects directly to vCenter on port 443.
+Pre-establish connectivity before deploying:
 
-## Security Notes
+| vCenter source | How |
+|---|---|
+| VMware on-premises | OCI Site-to-Site VPN or FastConnect |
+| OCVS | VCN peering |
+| AWS VMware (VMC) | AWS–OCI interconnect |
+| Azure VMware | Azure–OCI interconnect |
 
-- Credentials never leave your Mac — stored only in `claude_desktop_config.json`
-- vCenter is not directly exposed; all traffic goes through the SSH tunnel
-- SSL verification is disabled for self-signed vCenter certificates (`VCENTER_SSL_VERIFY=false`)
-- Power-off and restart operations require explicit confirmation to prevent accidents
+## OCI Auth
 
----
+On the OCI VM, **Instance Principal** is used — no API keys required.
+The VM's identity is granted GenAI access via IAM Dynamic Group + Policy (created by `deploy_oci.sh`).
 
-## Next Steps (Enterprise Version)
-
-A Docker-based version using OCI GenAI + LangChain + Streamlit (no Claude Desktop required) is planned. It will include:
-- Streamlit chat UI on OCI Container Instance
-- LangChain agent with OCI GenAI (Cohere Command A)
-- RAG over vCenter runbooks via OCI OpenSearch
-- All vCenter tools refactored as LangChain tools
+For local development, set `OCI_AUTH_TYPE=api_key` in `.env` and configure `~/.oci/config`.
