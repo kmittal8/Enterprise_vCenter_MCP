@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Enterprise vCenter MCP — Architecture Flow</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2.5rem 1.5rem 2rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 1.75rem;
+    }
+    header h1 {
+      font-size: clamp(1.5rem, 3vw, 2.1rem);
+      font-weight: 700;
+      color: #e6edf3;
+      letter-spacing: -0.02em;
+    }
+    header h1 .vmw { color: #007BBE; }
+    header h1 .oci { color: #C74634; }
+    header p {
+      font-size: 0.9rem;
+      color: #8b949e;
+      margin-top: 0.35rem;
+    }
+
+    .diagram-wrap {
+      width: 100%;
+      max-width: 1180px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+    }
+
+    svg { width: 100%; height: auto; display: block; }
+
+    /* ── Marching-ant path animations ── */
+    @keyframes march { to { stroke-dashoffset: -20; } }
+    .ant-purple  { stroke-dasharray: 6 4; animation: march 0.55s linear infinite; }
+    .ant-blue    { stroke-dasharray: 6 4; animation: march 0.55s linear infinite; }
+    .ant-red     { stroke-dasharray: 6 4; animation: march 0.55s linear infinite; }
+
+    /* ── Badge pulse ── */
+    @keyframes pulse { 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.1); } }
+    .badge-g { animation: pulse 2.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+    /* ── Node hover ── */
+    .node rect { transition: filter .2s; }
+    .node:hover rect { filter: brightness(1.25) drop-shadow(0 0 6px currentColor); }
+
+    /* ── Legend & footer ── */
+    .legend {
+      display: flex; gap: 2rem; flex-wrap: wrap;
+      justify-content: center; margin-top: 1.25rem;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: .45rem;
+      font-size: .8rem; color: #8b949e;
+    }
+    .dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+
+    .gh-link {
+      display: inline-block; margin-top: .9rem;
+      font-size: .8rem; color: #8b949e; text-decoration: none;
+    }
+    .gh-link:hover { color: #e6edf3; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Enterprise <span class="vmw">vCenter</span> <span class="oci">MCP</span></h1>
+  <p>AI-Powered VMware Operations on Oracle Cloud Infrastructure — Architecture &amp; Query Flow</p>
+</header>
+
+<div class="diagram-wrap">
+<svg viewBox="0 0 1180 820" xmlns="http://www.w3.org/2000/svg">
+<defs>
+
+  <!-- ── Arrowheads ── -->
+  <marker id="ah-purple" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+    <path d="M0,0 L0,6 L8,3z" fill="#8B5CF6"/>
+  </marker>
+  <marker id="ah-blue" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+    <path d="M0,0 L0,6 L8,3z" fill="#007BBE"/>
+  </marker>
+  <marker id="ah-red" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+    <path d="M0,0 L0,6 L8,3z" fill="#C74634"/>
+  </marker>
+
+  <!-- ── Drop shadow ── -->
+  <filter id="shadow" x="-25%" y="-25%" width="150%" height="150%">
+    <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity="0.55"/>
+  </filter>
+
+  <!-- ── Glow filters ── -->
+  <filter id="glow-p" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur stdDeviation="4" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="glow-b" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur stdDeviation="4" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="glow-r" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur stdDeviation="4" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+
+  <!-- ══ DOT-TRAVEL PATHS (Lane 1) ══ -->
+  <!-- P1  Browser → Agent -->
+  <path id="p1" d="M 192,180 L 278,180" fill="none"/>
+  <!-- P2  Agent → MCP Server -->
+  <path id="p2" d="M 472,180 L 568,180" fill="none"/>
+  <!-- P3  MCP Server → vCenter -->
+  <path id="p3" d="M 742,180 L 858,180" fill="none"/>
+  <!-- P4  Agent → OCI GenAI (fork left-down) -->
+  <path id="p4" d="M 368,216 L 368,262 L 237,262 L 237,290" fill="none"/>
+  <!-- P5  Agent → pgvector (fork right-down) -->
+  <path id="p5" d="M 386,216 L 386,262 L 588,262 L 588,290" fill="none"/>
+
+  <!-- ══ DOT-TRAVEL PATHS (Lane 2) ══ -->
+  <!-- P6  vcenter_app → mcp_server -->
+  <path id="p6" d="M 247,515 L 358,515" fill="none"/>
+  <!-- P7  mcp_server → vCenter (exits VM box) -->
+  <path id="p7" d="M 535,515 L 700,515" fill="none"/>
+  <!-- P8  vcenter_app → postgres (vertical) -->
+  <path id="p8" d="M 157,552 L 157,610" fill="none"/>
+  <!-- P9  vcenter_app → OCI GenAI (down-right, exits VM) -->
+  <path id="p9" d="M 247,527 L 315,527 L 315,718 L 452,718 L 452,730" fill="none"/>
+
+</defs>
+
+<!-- ══════════════════════════════════════════════
+     LANE 1 — USER QUERY FLOW
+════════════════════════════════════════════════ -->
+
+<!-- Lane 1 background -->
+<rect x="12" y="12" width="1156" height="388" rx="12"
+      fill="#1a2030" stroke="#2d3750" stroke-width="1.5"/>
+<!-- Lane 1 header strip -->
+<rect x="12" y="12" width="1156" height="40" rx="12" fill="#202840"/>
+<rect x="12" y="38" width="1156" height="14" fill="#202840"/>
+<text x="32" y="37" font-family="system-ui,sans-serif" font-size="11.5"
+      font-weight="700" fill="#8b949e" letter-spacing="2">LANE 1 — USER QUERY FLOW</text>
+<text x="1148" y="37" font-family="system-ui,sans-serif" font-size="10"
+      fill="#8b949e" text-anchor="end">How a natural-language question travels through the system</text>
+
+<!-- ── Lane 1 Flow Paths (marching ants) ── -->
+<!-- P1 purple -->
+<path d="M 192,180 L 278,180"
+      stroke="#8B5CF6" stroke-width="2.5" fill="none"
+      marker-end="url(#ah-purple)" class="ant-purple"/>
+<!-- P2 purple -->
+<path d="M 472,180 L 568,180"
+      stroke="#8B5CF6" stroke-width="2.5" fill="none"
+      marker-end="url(#ah-purple)" class="ant-purple"/>
+<!-- P3 blue (VMware) -->
+<path d="M 742,180 L 858,180"
+      stroke="#007BBE" stroke-width="2.5" fill="none"
+      marker-end="url(#ah-blue)" class="ant-blue"/>
+<!-- P4 red (OCI GenAI fork) -->
+<path d="M 368,216 L 368,262 L 237,262 L 237,290"
+      stroke="#C74634" stroke-width="2.5" fill="none"
+      marker-end="url(#ah-red)" class="ant-red"/>
+<!-- P5 red (pgvector fork) -->
+<path d="M 386,216 L 386,262 L 588,262 L 588,290"
+      stroke="#C74634" stroke-width="2.5" fill="none"
+      marker-end="url(#ah-red)" class="ant-red"/>
+
+<!-- ── Lane 1 Components ── -->
+
+<!-- Browser -->
+<g class="node" filter="url(#shadow)">
+  <rect x="32" y="145" width="160" height="70" rx="10"
+        fill="#1c2440" stroke="#8B5CF6" stroke-width="1.8"/>
+  <text x="112" y="173" font-size="24" text-anchor="middle" font-family="serif">🌐</text>
+  <text x="112" y="192" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#e6edf3" text-anchor="middle">Browser</text>
+  <text x="112" y="207" font-family="system-ui,sans-serif" font-size="9.5"
+        fill="#8b949e" text-anchor="middle">Streamlit :8501</text>
+</g>
+
+<!-- LangGraph Agent -->
+<g class="node" filter="url(#shadow)">
+  <rect x="278" y="145" width="194" height="70" rx="10"
+        fill="#1c2440" stroke="#8B5CF6" stroke-width="1.8"/>
+  <text x="375" y="173" font-size="24" text-anchor="middle" font-family="serif">🤖</text>
+  <text x="375" y="192" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#e6edf3" text-anchor="middle">LangGraph Agent</text>
+  <text x="375" y="207" font-family="system-ui,sans-serif" font-size="9.5"
+        fill="#8b949e" text-anchor="middle">ReAct · LangChain · Tool Router</text>
+</g>
+
+<!-- MCP Server -->
+<g class="node" filter="url(#shadow)">
+  <rect x="568" y="145" width="174" height="70" rx="10"
+        fill="#1a2535" stroke="#007BBE" stroke-width="1.8"/>
+  <text x="655" y="173" font-size="24" text-anchor="middle" font-family="serif">🔧</text>
+  <text x="655" y="192" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#e6edf3" text-anchor="middle">MCP Server</text>
+  <text x="655" y="207" font-family="system-ui,sans-serif" font-size="9.5"
+        fill="#8b949e" text-anchor="middle">FastMCP · 13 vCenter Tools · :8080</text>
+</g>
+
+<!-- vCenter (Lane 1) -->
+<g class="node" filter="url(#shadow)">
+  <rect x="858" y="145" width="170" height="70" rx="10"
+        fill="#162035" stroke="#007BBE" stroke-width="2"/>
+  <text x="943" y="173" font-size="24" text-anchor="middle" font-family="serif">💾</text>
+  <text x="943" y="192" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#e6edf3" text-anchor="middle">vCenter</text>
+  <text x="943" y="207" font-family="system-ui,sans-serif" font-size="9.5"
+        fill="#007BBE" text-anchor="middle">VMware OCVS SDDC · :443</text>
+</g>
+
+<!-- OCI GenAI (Lane 1 fork) -->
+<g class="node" filter="url(#shadow)">
+  <rect x="152" y="290" width="170" height="70" rx="10"
+        fill="#2a1820" stroke="#C74634" stroke-width="1.8"/>
+  <text x="237" y="318" font-size="24" text-anchor="middle" font-family="serif">☁️</text>
+  <text x="237" y="337" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#e6edf3" text-anchor="middle">OCI GenAI</text>
+  <text x="237" y="352" font-family="system-ui,sans-serif" font-size="9.5"
+        fill="#C74634" text-anchor="middle">Cohere Command A</text>
+</g>
+
+<!-- pgvector RAG (Lane 1 fork) -->
+<g class="node" filter="url(#shadow)">
+  <rect x="501" y="290" width="174" height="70" rx="10"
+        fill="#2a1820" stroke="#C74634" stroke-width="1.8"/>
+  <text x="588" y="318" font-size="24" text-anchor="middle" font-family="serif">📚</text>
+  <text x="588" y="337" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#e6edf3" text-anchor="middle">pgvector RAG</text>
+  <text x="588" y="352" font-family="system-ui,sans-serif" font-size="9.5"
+        fill="#C74634" text-anchor="middle">Runbooks · Semantic Search</text>
+</g>
+
+<!-- ── Lane 1 Step Labels ── -->
+<text x="235" y="168" font-family="system-ui,sans-serif" font-size="8.5"
+      fill="#8b949e" text-anchor="middle">query</text>
+<text x="520" y="168" font-family="system-ui,sans-serif" font-size="8.5"
+      fill="#8b949e" text-anchor="middle">tool call</text>
+<text x="800" y="168" font-family="system-ui,sans-serif" font-size="8.5"
+      fill="#8b949e" text-anchor="middle">vSphere API</text>
+<text x="302" y="252" font-family="system-ui,sans-serif" font-size="8.5"
+      fill="#C74634" text-anchor="middle" opacity=".85">LLM inference</text>
+<text x="487" y="252" font-family="system-ui,sans-serif" font-size="8.5"
+      fill="#C74634" text-anchor="middle" opacity=".85">semantic search</text>
+
+<!-- ── Lane 1 Number Badges ── -->
+<g class="badge-g">
+  <circle cx="235" cy="180" r="14" fill="#8B5CF6"/>
+  <text x="235" y="185" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#fff" text-anchor="middle">1</text>
+</g>
+<g class="badge-g" style="animation-delay:.35s">
+  <circle cx="520" cy="180" r="14" fill="#8B5CF6"/>
+  <text x="520" y="185" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#fff" text-anchor="middle">2</text>
+</g>
+<g class="badge-g" style="animation-delay:.7s">
+  <circle cx="800" cy="180" r="14" fill="#007BBE"/>
+  <text x="800" y="185" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#fff" text-anchor="middle">3</text>
+</g>
+<g class="badge-g" style="animation-delay:1.05s">
+  <circle cx="302" cy="262" r="14" fill="#C74634"/>
+  <text x="302" y="267" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#fff" text-anchor="middle">4</text>
+</g>
+<g class="badge-g" style="animation-delay:1.4s">
+  <circle cx="487" cy="262" r="14" fill="#C74634"/>
+  <text x="487" y="267" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#fff" text-anchor="middle">5</text>
+</g>
+
+<!-- ── Lane 1 Traveling Dots ── -->
+
+<!-- P1: Browser→Agent (purple) staggered x3 -->
+<circle r="5.5" fill="#8B5CF6" opacity=".95">
+  <animateMotion dur="1.4s" repeatCount="indefinite" begin="0s"><mpath href="#p1"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#8B5CF6" opacity=".95">
+  <animateMotion dur="1.4s" repeatCount="indefinite" begin="0.47s"><mpath href="#p1"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#8B5CF6" opacity=".95">
+  <animateMotion dur="1.4s" repeatCount="indefinite" begin="0.94s"><mpath href="#p1"/></animateMotion>
+</circle>
+
+<!-- P2: Agent→MCP (purple) -->
+<circle r="5.5" fill="#8B5CF6" opacity=".95">
+  <animateMotion dur="1.4s" repeatCount="indefinite" begin="0.15s"><mpath href="#p2"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#8B5CF6" opacity=".95">
+  <animateMotion dur="1.4s" repeatCount="indefinite" begin="0.62s"><mpath href="#p2"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#8B5CF6" opacity=".95">
+  <animateMotion dur="1.4s" repeatCount="indefinite" begin="1.09s"><mpath href="#p2"/></animateMotion>
+</circle>
+
+<!-- P3: MCP→vCenter (blue) -->
+<circle r="5.5" fill="#007BBE" opacity=".95">
+  <animateMotion dur="2s" repeatCount="indefinite" begin="0s"><mpath href="#p3"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#007BBE" opacity=".95">
+  <animateMotion dur="2s" repeatCount="indefinite" begin="0.67s"><mpath href="#p3"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#007BBE" opacity=".95">
+  <animateMotion dur="2s" repeatCount="indefinite" begin="1.34s"><mpath href="#p3"/></animateMotion>
+</circle>
+
+<!-- P4: Agent→GenAI (red) -->
+<circle r="5.5" fill="#C74634" opacity=".95">
+  <animateMotion dur="2.2s" repeatCount="indefinite" begin="0s"><mpath href="#p4"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#C74634" opacity=".95">
+  <animateMotion dur="2.2s" repeatCount="indefinite" begin="0.73s"><mpath href="#p4"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#C74634" opacity=".95">
+  <animateMotion dur="2.2s" repeatCount="indefinite" begin="1.46s"><mpath href="#p4"/></animateMotion>
+</circle>
+
+<!-- P5: Agent→pgvector (red) -->
+<circle r="5.5" fill="#C74634" opacity=".95">
+  <animateMotion dur="2.2s" repeatCount="indefinite" begin="0.2s"><mpath href="#p5"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#C74634" opacity=".95">
+  <animateMotion dur="2.2s" repeatCount="indefinite" begin="0.93s"><mpath href="#p5"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#C74634" opacity=".95">
+  <animateMotion dur="2.2s" repeatCount="indefinite" begin="1.66s"><mpath href="#p5"/></animateMotion>
+</circle>
+
+<!-- ══════════════════════════════════════════════
+     LANE 2 — OCI ARCHITECTURE
+════════════════════════════════════════════════ -->
+
+<!-- Lane 2 background -->
+<rect x="12" y="412" width="1156" height="396" rx="12"
+      fill="#1a2030" stroke="#2d3750" stroke-width="1.5"/>
+<!-- Lane 2 header strip -->
+<rect x="12" y="412" width="1156" height="40" rx="12" fill="#202840"/>
+<rect x="12" y="438" width="1156" height="14" fill="#202840"/>
+<text x="32" y="437" font-family="system-ui,sans-serif" font-size="11.5"
+      font-weight="700" fill="#8b949e" letter-spacing="2">LANE 2 — OCI ARCHITECTURE</text>
+<text x="1148" y="437" font-family="system-ui,sans-serif" font-size="10"
+      fill="#8b949e" text-anchor="end">Where each component lives on Oracle Cloud</text>
+
+<!-- OCI VM Bounding Box (dashed red border) -->
+<rect x="48" y="460" width="610" height="248" rx="10"
+      fill="rgba(199,70,52,0.04)" stroke="#C74634" stroke-width="1.5"
+      stroke-dasharray="9 5" opacity=".7"/>
+<text x="66" y="476" font-family="system-ui,sans-serif" font-size="10"
+      font-weight="700" fill="#C74634" opacity=".8"
+      letter-spacing="1">OCI COMPUTE VM  ·  Docker bridge: vcenter_net</text>
+
+<!-- ── Lane 2 Flow Paths ── -->
+<!-- P6 app→mcp (purple) -->
+<path d="M 247,515 L 358,515"
+      stroke="#8B5CF6" stroke-width="2.5" fill="none"
+      marker-end="url(#ah-purple)" class="ant-purple"/>
+<!-- P7 mcp→vCenter (blue, exits VM box) -->
+<path d="M 535,515 L 700,515"
+      stroke="#007BBE" stroke-width="2.5" fill="none"
+      marker-end="url(#ah-blue)" class="ant-blue"/>
+<!-- P8 app→postgres (red, vertical) -->
+<path d="M 157,552 L 157,610"
+      stroke="#C74634" stroke-width="2.5" fill="none"
+      marker-end="url(#ah-red)" class="ant-red"/>
+<!-- P9 app→OCI GenAI (red, exits VM bottom) -->
+<path d="M 247,527 L 315,527 L 315,718 L 452,718 L 452,730"
+      stroke="#C74634" stroke-width="2.5" fill="none"
+      marker-end="url(#ah-red)" class="ant-red"/>
+
+<!-- ── Lane 2 Components ── -->
+
+<!-- vcenter_app -->
+<g class="node" filter="url(#shadow)">
+  <rect x="70" y="480" width="177" height="72" rx="10"
+        fill="#1c2440" stroke="#8B5CF6" stroke-width="1.8"/>
+  <text x="159" y="507" font-size="22" text-anchor="middle" font-family="serif">🖥️</text>
+  <text x="159" y="526" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700"
+        fill="#e6edf3" text-anchor="middle">vcenter_app</text>
+  <text x="159" y="541" font-family="system-ui,sans-serif" font-size="9"
+        fill="#8b949e" text-anchor="middle">Streamlit · LangGraph · :8501</text>
+</g>
+
+<!-- vcenter_mcp_server -->
+<g class="node" filter="url(#shadow)">
+  <rect x="358" y="480" width="177" height="72" rx="10"
+        fill="#1a2535" stroke="#007BBE" stroke-width="1.8"/>
+  <text x="447" y="507" font-size="22" text-anchor="middle" font-family="serif">🔧</text>
+  <text x="447" y="526" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700"
+        fill="#e6edf3" text-anchor="middle">vcenter_mcp_server</text>
+  <text x="447" y="541" font-family="system-ui,sans-serif" font-size="9"
+        fill="#8b949e" text-anchor="middle">FastMCP · pyVmomi · :8080</text>
+</g>
+
+<!-- vcenter_postgres -->
+<g class="node" filter="url(#shadow)">
+  <rect x="70" y="610" width="177" height="72" rx="10"
+        fill="#2a1820" stroke="#C74634" stroke-width="1.8"/>
+  <text x="159" y="637" font-size="22" text-anchor="middle" font-family="serif">🗄️</text>
+  <text x="159" y="656" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700"
+        fill="#e6edf3" text-anchor="middle">vcenter_postgres</text>
+  <text x="159" y="671" font-family="system-ui,sans-serif" font-size="9"
+        fill="#C74634" text-anchor="middle">pgvector · PG 16 · :5432</text>
+</g>
+
+<!-- vCenter (Lane 2, external) -->
+<g class="node" filter="url(#shadow)">
+  <rect x="700" y="480" width="172" height="72" rx="10"
+        fill="#162035" stroke="#007BBE" stroke-width="2"/>
+  <text x="786" y="507" font-size="22" text-anchor="middle" font-family="serif">💾</text>
+  <text x="786" y="526" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700"
+        fill="#e6edf3" text-anchor="middle">vCenter</text>
+  <text x="786" y="541" font-family="system-ui,sans-serif" font-size="9"
+        fill="#007BBE" text-anchor="middle">OCVS SDDC · Same VCN · :443</text>
+</g>
+
+<!-- OCI GenAI (Lane 2, external below VM) -->
+<g class="node" filter="url(#shadow)">
+  <rect x="358" y="730" width="188" height="72" rx="10"
+        fill="#2a1820" stroke="#C74634" stroke-width="2"/>
+  <text x="452" y="757" font-size="22" text-anchor="middle" font-family="serif">☁️</text>
+  <text x="452" y="776" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700"
+        fill="#e6edf3" text-anchor="middle">OCI GenAI Service</text>
+  <text x="452" y="791" font-family="system-ui,sans-serif" font-size="9"
+        fill="#C74634" text-anchor="middle">Cohere Command A · Instance Principal</text>
+</g>
+
+<!-- ── Lane 2 Step Labels ── -->
+<text x="302" y="504" font-family="system-ui,sans-serif" font-size="8.5"
+      fill="#8b949e" text-anchor="middle">HTTP/SSE</text>
+<text x="617" y="504" font-family="system-ui,sans-serif" font-size="8.5"
+      fill="#8b949e" text-anchor="middle">pyVmomi · exits VCN</text>
+<text x="195" y="580" font-family="system-ui,sans-serif" font-size="8.5"
+      fill="#C74634" text-anchor="start" opacity=".85">vector R/W</text>
+<text x="330" y="620" font-family="system-ui,sans-serif" font-size="8.5"
+      fill="#C74634" text-anchor="start" opacity=".85">Inst. Principal</text>
+
+<!-- ── Lane 2 Number Badges ── -->
+<g class="badge-g" style="animation-delay:.4s">
+  <circle cx="302" cy="515" r="14" fill="#8B5CF6"/>
+  <text x="302" y="520" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#fff" text-anchor="middle">6</text>
+</g>
+<g class="badge-g" style="animation-delay:.8s">
+  <circle cx="617" cy="515" r="14" fill="#007BBE"/>
+  <text x="617" y="520" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#fff" text-anchor="middle">7</text>
+</g>
+<g class="badge-g" style="animation-delay:1.2s">
+  <circle cx="157" cy="581" r="14" fill="#C74634"/>
+  <text x="157" y="586" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#fff" text-anchor="middle">8</text>
+</g>
+<g class="badge-g" style="animation-delay:1.6s">
+  <circle cx="315" cy="623" r="14" fill="#C74634"/>
+  <text x="315" y="628" font-family="system-ui,sans-serif" font-size="12" font-weight="700"
+        fill="#fff" text-anchor="middle">9</text>
+</g>
+
+<!-- ── Lane 2 Traveling Dots ── -->
+
+<!-- P6: app→mcp (purple) -->
+<circle r="5.5" fill="#8B5CF6" opacity=".95">
+  <animateMotion dur="1.4s" repeatCount="indefinite" begin="0.1s"><mpath href="#p6"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#8B5CF6" opacity=".95">
+  <animateMotion dur="1.4s" repeatCount="indefinite" begin="0.57s"><mpath href="#p6"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#8B5CF6" opacity=".95">
+  <animateMotion dur="1.4s" repeatCount="indefinite" begin="1.04s"><mpath href="#p6"/></animateMotion>
+</circle>
+
+<!-- P7: mcp→vCenter (blue) -->
+<circle r="5.5" fill="#007BBE" opacity=".95">
+  <animateMotion dur="2.2s" repeatCount="indefinite" begin="0s"><mpath href="#p7"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#007BBE" opacity=".95">
+  <animateMotion dur="2.2s" repeatCount="indefinite" begin="0.73s"><mpath href="#p7"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#007BBE" opacity=".95">
+  <animateMotion dur="2.2s" repeatCount="indefinite" begin="1.46s"><mpath href="#p7"/></animateMotion>
+</circle>
+
+<!-- P8: app→postgres (red, vertical) -->
+<circle r="5.5" fill="#C74634" opacity=".95">
+  <animateMotion dur="1.1s" repeatCount="indefinite" begin="0s"><mpath href="#p8"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#C74634" opacity=".95">
+  <animateMotion dur="1.1s" repeatCount="indefinite" begin="0.37s"><mpath href="#p8"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#C74634" opacity=".95">
+  <animateMotion dur="1.1s" repeatCount="indefinite" begin="0.74s"><mpath href="#p8"/></animateMotion>
+</circle>
+
+<!-- P9: app→OCI GenAI (red, L-shaped exit) -->
+<circle r="5.5" fill="#C74634" opacity=".95">
+  <animateMotion dur="3s" repeatCount="indefinite" begin="0.2s"><mpath href="#p9"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#C74634" opacity=".95">
+  <animateMotion dur="3s" repeatCount="indefinite" begin="1.2s"><mpath href="#p9"/></animateMotion>
+</circle>
+<circle r="5.5" fill="#C74634" opacity=".95">
+  <animateMotion dur="3s" repeatCount="indefinite" begin="2.2s"><mpath href="#p9"/></animateMotion>
+</circle>
+
+<!-- ══════════════════════════════════════════════
+     STEP GUIDE SIDEBAR
+════════════════════════════════════════════════ -->
+<rect x="916" y="462" width="256" height="336" rx="10"
+      fill="#111827" stroke="#2d3750" stroke-width="1" opacity=".92"/>
+<text x="932" y="484" font-family="system-ui,sans-serif" font-size="10.5"
+      font-weight="700" fill="#8b949e" letter-spacing="1">STEP GUIDE</text>
+
+<!-- Step list -->
+<circle cx="940" cy="503" r="9" fill="#8B5CF6"/>
+<text x="940" y="507" font-family="system-ui,sans-serif" font-size="9" font-weight="700"
+      fill="#fff" text-anchor="middle">1</text>
+<text x="957" y="507" font-family="system-ui,sans-serif" font-size="9.5" fill="#c9d1d9">User types question in browser</text>
+
+<circle cx="940" cy="527" r="9" fill="#8B5CF6"/>
+<text x="940" y="531" font-family="system-ui,sans-serif" font-size="9" font-weight="700"
+      fill="#fff" text-anchor="middle">2</text>
+<text x="957" y="531" font-family="system-ui,sans-serif" font-size="9.5" fill="#c9d1d9">Agent selects the right MCP tool</text>
+
+<circle cx="940" cy="551" r="9" fill="#007BBE"/>
+<text x="940" y="555" font-family="system-ui,sans-serif" font-size="9" font-weight="700"
+      fill="#fff" text-anchor="middle">3</text>
+<text x="957" y="555" font-family="system-ui,sans-serif" font-size="9.5" fill="#c9d1d9">MCP calls vSphere API via pyVmomi</text>
+
+<circle cx="940" cy="575" r="9" fill="#C74634"/>
+<text x="940" y="579" font-family="system-ui,sans-serif" font-size="9" font-weight="700"
+      fill="#fff" text-anchor="middle">4</text>
+<text x="957" y="579" font-family="system-ui,sans-serif" font-size="9.5" fill="#c9d1d9">OCI GenAI generates response</text>
+
+<circle cx="940" cy="599" r="9" fill="#C74634"/>
+<text x="940" y="603" font-family="system-ui,sans-serif" font-size="9" font-weight="700"
+      fill="#fff" text-anchor="middle">5</text>
+<text x="957" y="603" font-family="system-ui,sans-serif" font-size="9.5" fill="#c9d1d9">pgvector searches runbook PDFs</text>
+
+<line x1="932" y1="618" x2="1160" y2="618" stroke="#2d3750" stroke-width="1"/>
+<text x="932" y="636" font-family="system-ui,sans-serif" font-size="10" font-weight="700"
+      fill="#8b949e" letter-spacing="1">CONTAINERS</text>
+
+<circle cx="940" cy="655" r="9" fill="#8B5CF6"/>
+<text x="940" y="659" font-family="system-ui,sans-serif" font-size="9" font-weight="700"
+      fill="#fff" text-anchor="middle">6</text>
+<text x="957" y="659" font-family="system-ui,sans-serif" font-size="9.5" fill="#c9d1d9">app → mcp_server (HTTP/SSE)</text>
+
+<circle cx="940" cy="679" r="9" fill="#007BBE"/>
+<text x="940" y="683" font-family="system-ui,sans-serif" font-size="9" font-weight="700"
+      fill="#fff" text-anchor="middle">7</text>
+<text x="957" y="683" font-family="system-ui,sans-serif" font-size="9.5" fill="#c9d1d9">mcp_server → vCenter :443</text>
+
+<circle cx="940" cy="703" r="9" fill="#C74634"/>
+<text x="940" y="707" font-family="system-ui,sans-serif" font-size="9" font-weight="700"
+      fill="#fff" text-anchor="middle">8</text>
+<text x="957" y="707" font-family="system-ui,sans-serif" font-size="9.5" fill="#c9d1d9">app → postgres (vector store)</text>
+
+<circle cx="940" cy="727" r="9" fill="#C74634"/>
+<text x="940" y="731" font-family="system-ui,sans-serif" font-size="9" font-weight="700"
+      fill="#fff" text-anchor="middle">9</text>
+<text x="957" y="731" font-family="system-ui,sans-serif" font-size="9.5" fill="#c9d1d9">app → OCI GenAI (Instance Principal)</text>
+
+<!-- GitHub link in diagram -->
+<text x="932" y="780" font-family="system-ui,sans-serif" font-size="9"
+      fill="#8b949e">⭐ github.com/kmittal8/</text>
+<text x="932" y="793" font-family="system-ui,sans-serif" font-size="9"
+      fill="#8b949e">   Enterprise_vCenter_MCP</text>
+
+</svg>
+</div>
+
+<!-- External legend -->
+<div class="legend">
+  <div class="legend-item">
+    <span class="dot" style="background:#8B5CF6;"></span>
+    Agent / Query Pipeline
+  </div>
+  <div class="legend-item">
+    <span class="dot" style="background:#007BBE;"></span>
+    VMware vCenter (pyVmomi)
+  </div>
+  <div class="legend-item">
+    <span class="dot" style="background:#C74634;"></span>
+    Oracle Cloud Infrastructure
+  </div>
+  <div class="legend-item" style="color:#30363d; font-size:.75rem;">
+    — — —&nbsp; OCI VM boundary (dashed)
+  </div>
+</div>
+
+<a class="gh-link" href="https://github.com/kmittal8/Enterprise_vCenter_MCP"
+   target="_blank" rel="noopener">
+  ⭐ github.com/kmittal8/Enterprise_vCenter_MCP
+</a>
+
+</body>
+</html>

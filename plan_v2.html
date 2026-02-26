@@ -1175,44 +1175,99 @@
   <div class="callflow">
     <h3>Full Request Call Flow — "Show me all powered-off VMs"</h3>
 
+    <!-- Container legend -->
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem;font-size:0.8rem;font-family:var(--mono);">
+      <span style="background:#ede9fe;color:#4c1d95;padding:0.25rem 0.6rem;border-radius:4px;">&#9632; vcenter_app</span>
+      <span style="background:#fee2e2;color:#991b1b;padding:0.25rem 0.6rem;border-radius:4px;">&#9632; vcenter_mcp_server</span>
+      <span style="background:#d1fae5;color:#065f46;padding:0.25rem 0.6rem;border-radius:4px;">&#9632; vcenter_postgres</span>
+      <span style="background:#f3f4f6;color:#374151;padding:0.25rem 0.6rem;border-radius:4px;">&#9632; external (OCI GenAI / vCenter)</span>
+    </div>
+    <p style="font-size:0.82rem;color:#6b7280;margin-bottom:1.5rem;">
+      All three containers run inside a Docker bridge network (<code>vcenter_net</code>) on the OCI VM (<code>168.138.29.209</code>, ap-melbourne-1).
+      Only port <strong>8501</strong> is exposed to the internet. Containers reach each other by service name (e.g. <code>mcp_server:8080</code>).
+    </p>
+
     <div class="cf-step">
       <div class="cf-num">1</div>
-      <div class="cf-text">User types <strong>"Show me all powered-off VMs"</strong> in the Streamlit chat UI at <code>http://YOUR_VM_PUBLIC_IP:8501</code></div>
+      <div class="cf-text">
+        <strong>Browser → vcenter_app (port 8501)</strong><br>
+        User types <strong>"Show me all powered-off VMs"</strong> in the Streamlit chat UI at <code>http://168.138.29.209:8501</code>
+      </div>
     </div>
 
     <div class="cf-step">
       <div class="cf-num">2</div>
-      <div class="cf-text"><code>streamlit_app.py</code> calls <code>invoke_agent(agent, message, history)</code> — passes conversation history</div>
+      <div class="cf-text">
+        <span style="background:#ede9fe;color:#4c1d95;font-size:0.75rem;padding:0.1rem 0.4rem;border-radius:3px;font-family:var(--mono);">vcenter_app</span>
+        &nbsp;<code>app/streamlit_app.py</code> — entry point inside the container.<br>
+        Calls <code>invoke_agent(agent, message, history)</code>, passing the full conversation history.
+      </div>
     </div>
 
     <div class="cf-step">
       <div class="cf-num">3</div>
-      <div class="cf-text"><code>agent.py</code> calls <code>agent.ainvoke(messages)</code> — LangGraph ReAct loop begins. <code>nest_asyncio.apply()</code> bridges Streamlit's event loop.</div>
+      <div class="cf-text">
+        <span style="background:#ede9fe;color:#4c1d95;font-size:0.75rem;padding:0.1rem 0.4rem;border-radius:3px;font-family:var(--mono);">vcenter_app</span>
+        &nbsp;<code>app/agent.py</code> — also inside the same container.<br>
+        Calls <code>agent.ainvoke(messages)</code> — LangGraph ReAct loop begins. <code>nest_asyncio.apply()</code> bridges Streamlit's event loop.
+      </div>
     </div>
 
     <div class="cf-step">
       <div class="cf-num">4</div>
-      <div class="cf-text"><strong>LLM reasoning:</strong> Cohere Command A (via OCI GenAI ap-hyderabad-1) reads tool descriptions and decides to call <code>list_vms</code></div>
+      <div class="cf-text">
+        <span style="background:#f3f4f6;color:#374151;font-size:0.75rem;padding:0.1rem 0.4rem;border-radius:3px;font-family:var(--mono);">external — OCI GenAI</span>
+        &nbsp;<code>app/oci_llm.py</code> (inside vcenter_app) makes an HTTPS call out to OCI GenAI <strong>ap-hyderabad-1</strong>.<br>
+        Cohere Command A reads tool descriptions and decides to call <code>list_vms</code>.
+      </div>
     </div>
 
     <div class="cf-step">
       <div class="cf-num">5</div>
-      <div class="cf-text">MCP client sends SSE request to <code>mcp_server:8080</code> with tool name <code>list_vms</code> and JSON arguments</div>
+      <div class="cf-text">
+        <span style="background:#ede9fe;color:#4c1d95;font-size:0.75rem;padding:0.1rem 0.4rem;border-radius:3px;font-family:var(--mono);">vcenter_app</span>
+        →
+        <span style="background:#fee2e2;color:#991b1b;font-size:0.75rem;padding:0.1rem 0.4rem;border-radius:3px;font-family:var(--mono);">vcenter_mcp_server</span>
+        &nbsp;MCP client (in agent.py) sends an SSE request to <code>http://mcp_server:8080/sse</code> — that hostname resolves inside <code>vcenter_net</code> to the <code>vcenter_mcp_server</code> container.
+        Payload: tool name <code>list_vms</code> + JSON arguments.
+      </div>
     </div>
 
     <div class="cf-step">
       <div class="cf-num">6</div>
-      <div class="cf-text"><code>mcp_server</code> calls <strong>pyVmomi → vCenter 10.0.12.2:443</strong> — retrieves VM inventory as JSON (name, power state, host, datastore, etc.)</div>
+      <div class="cf-text">
+        <span style="background:#fee2e2;color:#991b1b;font-size:0.75rem;padding:0.1rem 0.4rem;border-radius:3px;font-family:var(--mono);">vcenter_mcp_server</span>
+        &nbsp;<code>mcp_server/server.py</code> — the only file in this container.<br>
+        Calls <strong>pyVmomi → vCenter FQDN/IP:443</strong> (outside Docker, over the network) — retrieves VM inventory as JSON (name, power state, host, datastore, etc.)
+      </div>
     </div>
 
     <div class="cf-step">
       <div class="cf-num">7</div>
-      <div class="cf-text">JSON VM list returned to LLM as tool result over SSE. LLM filters powered-off VMs, formats a clean natural-language response.</div>
+      <div class="cf-text">
+        <span style="background:#fee2e2;color:#991b1b;font-size:0.75rem;padding:0.1rem 0.4rem;border-radius:3px;font-family:var(--mono);">vcenter_mcp_server</span>
+        →
+        <span style="background:#f3f4f6;color:#374151;font-size:0.75rem;padding:0.1rem 0.4rem;border-radius:3px;font-family:var(--mono);">external — OCI GenAI</span>
+        &nbsp;JSON VM list streamed back over SSE to agent.py. OCI GenAI filters powered-off VMs and formats a clean natural-language response.
+      </div>
     </div>
 
     <div class="cf-step" style="margin-bottom:0;">
       <div class="cf-num">8</div>
-      <div class="cf-text">Formatted answer rendered in the Streamlit chat window. Total round-trip: typically <strong>2–5 seconds</strong>.</div>
+      <div class="cf-text">
+        <span style="background:#ede9fe;color:#4c1d95;font-size:0.75rem;padding:0.1rem 0.4rem;border-radius:3px;font-family:var(--mono);">vcenter_app</span>
+        &nbsp;<code>app/streamlit_app.py</code> renders the formatted answer in the chat window.
+        Total round-trip: typically <strong>2–5 seconds</strong>.
+      </div>
+    </div>
+
+    <div style="margin-top:1.5rem;padding:1rem;background:#f8fafc;border-radius:8px;font-size:0.82rem;color:#374151;border-left:3px solid #94a3b8;">
+      <strong>File → Container map:</strong><br>
+      <code>app/streamlit_app.py</code>, <code>app/agent.py</code>, <code>app/oci_llm.py</code>, <code>app/config.py</code>, <code>app/rag/</code>
+      &nbsp;→&nbsp; <strong>vcenter_app</strong> (built from <code>app/Dockerfile</code>)<br>
+      <code>mcp_server/server.py</code>
+      &nbsp;→&nbsp; <strong>vcenter_mcp_server</strong> (built from <code>mcp_server/Dockerfile</code>)<br>
+      pgvector image &nbsp;→&nbsp; <strong>vcenter_postgres</strong> (no custom code — standard Docker image)
     </div>
 
   </div><!-- /callflow -->
@@ -1225,6 +1280,104 @@
   <div class="section-label">Section 4</div>
   <h2>Docker Breakdown</h2>
   <p style="margin-bottom:2rem;">Three containers on a single Docker bridge network. All inter-container traffic is internal — only port 8501 is exposed to the internet.</p>
+
+  <!-- ── Quick flow diagram ── -->
+  <div style="overflow-x:auto;margin-bottom:2.5rem;">
+  <div style="display:inline-flex;align-items:center;gap:0;font-family:var(--mono);font-size:0.82rem;min-width:700px;">
+
+    <!-- Browser -->
+    <div style="text-align:center;">
+      <div style="padding:0.6rem 1rem;background:#f1f5f9;border:2px solid #94a3b8;border-radius:8px;color:#1e293b;font-weight:600;">
+        Browser
+      </div>
+      <div style="font-size:0.7rem;color:#94a3b8;margin-top:0.3rem;">:8501</div>
+    </div>
+
+    <!-- arrow -->
+    <div style="display:flex;flex-direction:column;align-items:center;padding:0 0.4rem;">
+      <div style="font-size:0.65rem;color:#64748b;margin-bottom:2px;">HTTPS</div>
+      <div style="color:#64748b;font-size:1.1rem;">→</div>
+    </div>
+
+    <!-- OCI VM box wrapping 3 containers -->
+    <div style="border:2px dashed #cbd5e1;border-radius:12px;padding:1rem;background:#f8fafc;">
+      <div style="font-size:0.68rem;color:#64748b;text-align:center;margin-bottom:0.75rem;letter-spacing:0.05em;">OCI VM · ap-melbourne-1 · Docker bridge: vcenter_net</div>
+      <div style="display:flex;align-items:center;gap:0;">
+
+        <!-- vcenter_app -->
+        <div style="text-align:center;">
+          <div style="padding:0.6rem 0.9rem;background:#ede9fe;border:2px solid #7c3aed;border-radius:8px;color:#4c1d95;font-weight:700;line-height:1.4;">
+            vcenter_app<br>
+            <span style="font-weight:400;font-size:0.72rem;">streamlit · agent · rag</span>
+          </div>
+          <div style="font-size:0.68rem;color:#7c3aed;margin-top:0.3rem;">:8501</div>
+        </div>
+
+        <!-- arrow to mcp -->
+        <div style="display:flex;flex-direction:column;align-items:center;padding:0 0.4rem;">
+          <div style="font-size:0.62rem;color:#64748b;margin-bottom:2px;">SSE :8080</div>
+          <div style="color:#64748b;font-size:1.1rem;">⇄</div>
+        </div>
+
+        <!-- vcenter_mcp_server -->
+        <div style="text-align:center;">
+          <div style="padding:0.6rem 0.9rem;background:#fee2e2;border:2px solid #dc2626;border-radius:8px;color:#991b1b;font-weight:700;line-height:1.4;">
+            vcenter_mcp_server<br>
+            <span style="font-weight:400;font-size:0.72rem;">FastMCP · pyVmomi</span>
+          </div>
+          <div style="font-size:0.68rem;color:#dc2626;margin-top:0.3rem;">:8080</div>
+        </div>
+
+        <!-- arrow to postgres -->
+        <div style="display:flex;flex-direction:column;align-items:center;padding:0 0.4rem;">
+          <div style="font-size:0.62rem;color:#64748b;margin-bottom:2px;">SQL :5432</div>
+          <div style="color:#64748b;font-size:1.1rem;">⇄</div>
+        </div>
+
+        <!-- vcenter_postgres -->
+        <div style="text-align:center;">
+          <div style="padding:0.6rem 0.9rem;background:#d1fae5;border:2px solid #059669;border-radius:8px;color:#065f46;font-weight:700;line-height:1.4;">
+            vcenter_postgres<br>
+            <span style="font-weight:400;font-size:0.72rem;">pgvector · runbooks</span>
+          </div>
+          <div style="font-size:0.68rem;color:#059669;margin-top:0.3rem;">:5432 internal only</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- arrows out to external -->
+    <div style="display:flex;flex-direction:column;gap:0.6rem;padding:0 0.4rem;align-items:center;">
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div style="font-size:0.62rem;color:#64748b;margin-bottom:2px;">HTTPS · Cohere LLM + Embed</div>
+        <div style="color:#64748b;font-size:1.1rem;">→</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div style="font-size:0.62rem;color:#64748b;margin-bottom:2px;">HTTPS :443 · pyVmomi</div>
+        <div style="color:#64748b;font-size:1.1rem;">→</div>
+      </div>
+    </div>
+
+    <!-- External column -->
+    <div style="display:flex;flex-direction:column;gap:0.6rem;">
+      <div style="padding:0.5rem 0.8rem;background:#fef9c3;border:2px solid #ca8a04;border-radius:8px;color:#713f12;font-weight:600;text-align:center;line-height:1.4;">
+        OCI GenAI<br>
+        <span style="font-weight:400;font-size:0.7rem;">ap-hyderabad-1</span>
+      </div>
+      <div style="padding:0.5rem 0.8rem;background:#e0f2fe;border:2px solid #0284c7;border-radius:8px;color:#0c4a6e;font-weight:600;text-align:center;line-height:1.4;">
+        vCenter<br>
+        <span style="font-weight:400;font-size:0.7rem;">:443 · pyVmomi</span>
+      </div>
+    </div>
+
+  </div>
+  </div>
+  <!-- note below diagram -->
+  <p style="font-size:0.78rem;color:#6b7280;margin-bottom:2rem;">
+    <strong>Note:</strong> <code>vcenter_app</code> is the hub — it talks to all other components.
+    <code>vcenter_mcp_server</code> only talks to vCenter (outbound) and <code>vcenter_app</code> (inbound SSE).
+    <code>vcenter_postgres</code> only talks to <code>vcenter_app</code> (SQL reads/writes). Data at rest lives only in <code>vcenter_postgres</code>.
+  </p>
 
   <div class="docker-cards">
 
@@ -1245,6 +1398,21 @@
           The <code>app</code> container queries it using <code>langchain-postgres</code> + <code>psycopg</code> (v3)
           for RAG — when a user asks a procedure question, relevant runbook chunks are retrieved and injected
           into the LLM context before answering.
+        </div>
+        <hr class="docker-divider" />
+        <div class="docker-purpose">
+          <strong>Where does vectorization actually happen?</strong><br>
+          <code>vcenter_postgres</code> only <em>stores</em> vectors — it does zero ML.<br><br>
+          The embedding pipeline is:
+          <ol style="margin:0.5rem 0 0 1.2rem;padding:0;font-size:0.85rem;color:#374151;line-height:1.8;">
+            <li><strong>vcenter_app</strong> — <code>app/rag/ingest.py</code> reads PDF/MD runbooks from <code>/runbooks</code>, chunks them, then calls <code>build_embeddings()</code> in <code>app/oci_llm.py</code></li>
+            <li><strong>OCI GenAI (external, ap-hyderabad-1)</strong> — Cohere Embed model actually <em>computes</em> the float vectors and returns them to <code>vcenter_app</code></li>
+            <li><strong>vcenter_postgres</strong> — <code>vcenter_app</code> writes the vectors into the pgvector table via <code>langchain-postgres</code></li>
+          </ol>
+          <div style="margin-top:0.75rem;font-size:0.8rem;color:#6b7280;">
+            Triggered manually: <code>docker exec -it vcenter_app python -m rag.ingest</code> (or via <code>scripts/ingest_docs.sh</code>).
+            Re-run whenever runbooks are added or updated. Not triggered on container startup.
+          </div>
         </div>
       </div>
     </div>
@@ -1586,6 +1754,298 @@ docker compose logs -f
     keeping all AI inference within OCI. The Cohere Command A model runs in ap-hyderabad-1 — an
     OCI sovereign region. No user data or vCenter details ever leave Oracle Cloud Infrastructure.
   </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     FLOW DIAGRAMS
+══════════════════════════════════════════════════════════════ -->
+<section id="flow-diagrams" style="padding:3rem 0;">
+
+  <style>
+    @keyframes d-march { to { stroke-dashoffset: -20; } }
+    @keyframes d-pulse { 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.12); } }
+    .d-ant   { stroke-dasharray:6 4; animation: d-march .5s linear infinite; }
+    .d-badge { animation: d-pulse 2.2s ease-in-out infinite;
+               transform-box:fill-box; transform-origin:center; }
+  </style>
+
+  <h2 style="font-size:1.6rem;font-weight:700;color:#1A1F36;margin-bottom:.4rem;">
+    Architecture Flow Diagrams
+  </h2>
+
+  <!-- ─── LANE 1 ─── -->
+  <div style="background:#0d1117;border:1px solid #30363d;border-radius:14px;
+              padding:2rem 2rem 1.5rem;margin-bottom:2rem;
+              box-shadow:0 4px 32px rgba(0,0,0,.5);">
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.5rem;">
+      <span style="background:#C74634;color:#fff;font-size:.7rem;font-weight:700;
+                   letter-spacing:1.5px;padding:.28rem .8rem;border-radius:999px;">LANE 1</span>
+      <strong style="font-size:1.05rem;color:#e6edf3;">User Query Flow</strong>
+      <span style="color:#8b949e;font-size:.85rem;">— how a question travels through the system</span>
+    </div>
+
+    <svg viewBox="0 0 1100 355" xmlns="http://www.w3.org/2000/svg"
+         style="width:100%;height:auto;display:block;">
+      <defs>
+        <marker id="l1p" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3z" fill="#8B5CF6"/>
+        </marker>
+        <marker id="l1b" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3z" fill="#007BBE"/>
+        </marker>
+        <marker id="l1r" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3z" fill="#C74634"/>
+        </marker>
+        <filter id="l1sh">
+          <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity=".07"/>
+        </filter>
+        <path id="l1p1" d="M 182,82 L 260,82" fill="none"/>
+        <path id="l1p2" d="M 462,82 L 547,82" fill="none"/>
+        <path id="l1p3" d="M 724,82 L 832,82" fill="none"/>
+        <path id="l1p4" d="M 353,118 L 353,178 L 232,178 L 232,222" fill="none"/>
+        <path id="l1p5" d="M 369,118 L 369,178 L 554,178 L 554,222" fill="none"/>
+      </defs>
+
+      <!-- Background -->
+      <rect width="1100" height="355" fill="#0d1117" rx="10"/>
+
+      <!-- Flow paths (marching ants) -->
+      <path d="M 182,82 L 260,82"   stroke="#a78bfa" stroke-width="2.5" fill="none" marker-end="url(#l1p)" class="d-ant"/>
+      <path d="M 462,82 L 547,82"   stroke="#a78bfa" stroke-width="2.5" fill="none" marker-end="url(#l1p)" class="d-ant"/>
+      <path d="M 724,82 L 832,82"   stroke="#38bdf8" stroke-width="2.5" fill="none" marker-end="url(#l1b)" class="d-ant"/>
+      <path d="M 353,118 L 353,178 L 232,178 L 232,222" stroke="#f87171" stroke-width="2.5" fill="none" marker-end="url(#l1r)" class="d-ant"/>
+      <path d="M 369,118 L 369,178 L 554,178 L 554,222" stroke="#f87171" stroke-width="2.5" fill="none" marker-end="url(#l1r)" class="d-ant"/>
+
+      <!-- Browser -->
+      <g filter="url(#l1sh)">
+        <rect x="20"  y="47" width="162" height="70" rx="10" fill="#1c2440" stroke="#a78bfa" stroke-width="2"/>
+        <text x="101" y="75"  font-size="22" text-anchor="middle" font-family="serif">🌐</text>
+        <text x="101" y="94"  font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#e6edf3" text-anchor="middle">Browser</text>
+        <text x="101" y="109" font-family="system-ui,sans-serif" font-size="9.5" fill="#8b949e" text-anchor="middle">Streamlit :8501</text>
+      </g>
+
+      <!-- LangGraph Agent -->
+      <g filter="url(#l1sh)">
+        <rect x="260" y="47" width="202" height="70" rx="10" fill="#1c2440" stroke="#a78bfa" stroke-width="2"/>
+        <text x="361" y="75"  font-size="22" text-anchor="middle" font-family="serif">🤖</text>
+        <text x="361" y="94"  font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#e6edf3" text-anchor="middle">LangGraph Agent</text>
+        <text x="361" y="109" font-family="system-ui,sans-serif" font-size="9.5" fill="#8b949e" text-anchor="middle">ReAct · LangChain · Tool Router</text>
+      </g>
+
+      <!-- MCP Server -->
+      <g filter="url(#l1sh)">
+        <rect x="547" y="47" width="177" height="70" rx="10" fill="#0f1f2e" stroke="#38bdf8" stroke-width="2"/>
+        <text x="635" y="75"  font-size="22" text-anchor="middle" font-family="serif">🔧</text>
+        <text x="635" y="94"  font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#e6edf3" text-anchor="middle">MCP Server</text>
+        <text x="635" y="109" font-family="system-ui,sans-serif" font-size="9.5" fill="#8b949e" text-anchor="middle">FastMCP · 13 Tools · :8080</text>
+      </g>
+
+      <!-- vCenter -->
+      <g filter="url(#l1sh)">
+        <rect x="832" y="47" width="168" height="70" rx="10" fill="#0f1f2e" stroke="#38bdf8" stroke-width="2.5"/>
+        <text x="916" y="75"  font-size="22" text-anchor="middle" font-family="serif">💾</text>
+        <text x="916" y="94"  font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#e6edf3" text-anchor="middle">vCenter</text>
+        <text x="916" y="109" font-family="system-ui,sans-serif" font-size="9.5" fill="#38bdf8" text-anchor="middle">VMware OCVS SDDC · :443</text>
+      </g>
+
+      <!-- OCI GenAI -->
+      <g filter="url(#l1sh)">
+        <rect x="147" y="222" width="170" height="70" rx="10" fill="#2a1515" stroke="#f87171" stroke-width="2"/>
+        <text x="232" y="250" font-size="22" text-anchor="middle" font-family="serif">☁️</text>
+        <text x="232" y="269" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#e6edf3" text-anchor="middle">OCI GenAI</text>
+        <text x="232" y="284" font-family="system-ui,sans-serif" font-size="9.5" fill="#f87171" text-anchor="middle">Cohere Command A</text>
+      </g>
+
+      <!-- pgvector RAG -->
+      <g filter="url(#l1sh)">
+        <rect x="467" y="222" width="175" height="70" rx="10" fill="#2a1515" stroke="#f87171" stroke-width="2"/>
+        <text x="554" y="250" font-size="22" text-anchor="middle" font-family="serif">📚</text>
+        <text x="554" y="269" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#e6edf3" text-anchor="middle">pgvector RAG</text>
+        <text x="554" y="284" font-family="system-ui,sans-serif" font-size="9.5" fill="#f87171" text-anchor="middle">Runbooks · Semantic Search</text>
+      </g>
+
+      <!-- Step labels -->
+      <text x="221" y="70" font-family="system-ui,sans-serif" font-size="8.5" fill="#8b949e" text-anchor="middle">query</text>
+      <text x="504" y="70" font-family="system-ui,sans-serif" font-size="8.5" fill="#8b949e" text-anchor="middle">tool call</text>
+      <text x="778" y="70" font-family="system-ui,sans-serif" font-size="8.5" fill="#8b949e" text-anchor="middle">vSphere API</text>
+      <text x="292" y="168" font-family="system-ui,sans-serif" font-size="8.5" fill="#f87171" text-anchor="middle">LLM inference</text>
+      <text x="462" y="168" font-family="system-ui,sans-serif" font-size="8.5" fill="#f87171" text-anchor="middle">semantic search</text>
+
+      <!-- Badges -->
+      <g class="d-badge"><circle cx="221" cy="82" r="13" fill="#a78bfa"/><text x="221" y="87" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">1</text></g>
+      <g class="d-badge" style="animation-delay:.4s"><circle cx="504" cy="82" r="13" fill="#a78bfa"/><text x="504" y="87" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">2</text></g>
+      <g class="d-badge" style="animation-delay:.8s"><circle cx="778" cy="82" r="13" fill="#38bdf8"/><text x="778" y="87" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">3</text></g>
+      <g class="d-badge" style="animation-delay:1.2s"><circle cx="292" cy="178" r="13" fill="#f87171"/><text x="292" y="183" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">4</text></g>
+      <g class="d-badge" style="animation-delay:1.6s"><circle cx="462" cy="178" r="13" fill="#f87171"/><text x="462" y="183" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">5</text></g>
+
+      <!-- Traveling dots P1 -->
+      <circle r="5.5" fill="#a78bfa"><animateMotion dur="1.4s" repeatCount="indefinite" begin="0s"><mpath href="#l1p1"/></animateMotion></circle>
+      <circle r="5.5" fill="#a78bfa"><animateMotion dur="1.4s" repeatCount="indefinite" begin="0.47s"><mpath href="#l1p1"/></animateMotion></circle>
+      <circle r="5.5" fill="#a78bfa"><animateMotion dur="1.4s" repeatCount="indefinite" begin="0.94s"><mpath href="#l1p1"/></animateMotion></circle>
+      <!-- P2 -->
+      <circle r="5.5" fill="#a78bfa"><animateMotion dur="1.4s" repeatCount="indefinite" begin="0.2s"><mpath href="#l1p2"/></animateMotion></circle>
+      <circle r="5.5" fill="#a78bfa"><animateMotion dur="1.4s" repeatCount="indefinite" begin="0.67s"><mpath href="#l1p2"/></animateMotion></circle>
+      <circle r="5.5" fill="#a78bfa"><animateMotion dur="1.4s" repeatCount="indefinite" begin="1.14s"><mpath href="#l1p2"/></animateMotion></circle>
+      <!-- P3 -->
+      <circle r="5.5" fill="#38bdf8"><animateMotion dur="2s" repeatCount="indefinite" begin="0s"><mpath href="#l1p3"/></animateMotion></circle>
+      <circle r="5.5" fill="#38bdf8"><animateMotion dur="2s" repeatCount="indefinite" begin="0.67s"><mpath href="#l1p3"/></animateMotion></circle>
+      <circle r="5.5" fill="#38bdf8"><animateMotion dur="2s" repeatCount="indefinite" begin="1.34s"><mpath href="#l1p3"/></animateMotion></circle>
+      <!-- P4 -->
+      <circle r="5.5" fill="#f87171"><animateMotion dur="2.2s" repeatCount="indefinite" begin="0s"><mpath href="#l1p4"/></animateMotion></circle>
+      <circle r="5.5" fill="#f87171"><animateMotion dur="2.2s" repeatCount="indefinite" begin="0.73s"><mpath href="#l1p4"/></animateMotion></circle>
+      <circle r="5.5" fill="#f87171"><animateMotion dur="2.2s" repeatCount="indefinite" begin="1.46s"><mpath href="#l1p4"/></animateMotion></circle>
+      <!-- P5 -->
+      <circle r="5.5" fill="#f87171"><animateMotion dur="2.2s" repeatCount="indefinite" begin="0.3s"><mpath href="#l1p5"/></animateMotion></circle>
+      <circle r="5.5" fill="#f87171"><animateMotion dur="2.2s" repeatCount="indefinite" begin="1.03s"><mpath href="#l1p5"/></animateMotion></circle>
+      <circle r="5.5" fill="#f87171"><animateMotion dur="2.2s" repeatCount="indefinite" begin="1.76s"><mpath href="#l1p5"/></animateMotion></circle>
+
+      <!-- Legend -->
+      <circle cx="28"  cy="338" r="6" fill="#a78bfa"/>
+      <text x="40"  y="343" font-family="system-ui,sans-serif" font-size="9" fill="#8b949e">Agent Pipeline</text>
+      <circle cx="140" cy="338" r="6" fill="#38bdf8"/>
+      <text x="152" y="343" font-family="system-ui,sans-serif" font-size="9" fill="#8b949e">VMware / vCenter</text>
+      <circle cx="262" cy="338" r="6" fill="#f87171"/>
+      <text x="274" y="343" font-family="system-ui,sans-serif" font-size="9" fill="#8b949e">Oracle Cloud (OCI)</text>
+    </svg>
+  </div>
+
+  <!-- ─── LANE 2 ─── -->
+  <div style="background:#0d1117;border:1px solid #30363d;border-radius:14px;
+              padding:2rem 2rem 1.5rem;
+              box-shadow:0 4px 32px rgba(0,0,0,.5);">
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.5rem;">
+      <span style="background:#C74634;color:#fff;font-size:.7rem;font-weight:700;
+                   letter-spacing:1.5px;padding:.28rem .8rem;border-radius:999px;">LANE 2</span>
+      <strong style="font-size:1.05rem;color:#e6edf3;">OCI Container Architecture</strong>
+      <span style="color:#8b949e;font-size:.85rem;">— where components live on Oracle Cloud</span>
+    </div>
+
+    <svg viewBox="0 0 860 460" xmlns="http://www.w3.org/2000/svg"
+         style="width:100%;height:auto;display:block;">
+      <defs>
+        <marker id="l2p" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3z" fill="#8B5CF6"/>
+        </marker>
+        <marker id="l2b" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3z" fill="#007BBE"/>
+        </marker>
+        <marker id="l2r" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3z" fill="#C74634"/>
+        </marker>
+        <filter id="l2sh">
+          <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity=".07"/>
+        </filter>
+        <path id="l2p6" d="M 217,97 L 312,97"  fill="none"/>
+        <path id="l2p7" d="M 499,97 L 600,97"  fill="none"/>
+        <path id="l2p8" d="M 129,132 L 129,212" fill="none"/>
+        <path id="l2p9" d="M 129,284 L 129,372" fill="none"/>
+      </defs>
+
+      <!-- Background -->
+      <rect width="860" height="460" fill="#0d1117" rx="10"/>
+
+      <!-- OCI VM bounding box -->
+      <rect x="18" y="38" width="502" height="278" rx="10"
+            fill="rgba(199,70,52,.05)" stroke="#f87171" stroke-width="1.5"
+            stroke-dasharray="9 5" opacity=".8"/>
+      <text x="34" y="54" font-family="system-ui,sans-serif" font-size="9.5"
+            font-weight="700" fill="#f87171" opacity=".9" letter-spacing=".5">
+        OCI COMPUTE VM  ·  Docker bridge: vcenter_net
+      </text>
+
+      <!-- External label -->
+      <text x="615" y="54" font-family="system-ui,sans-serif" font-size="9"
+            fill="#8b949e" font-style="italic">external (same VCN)</text>
+      <text x="60"  y="370" font-family="system-ui,sans-serif" font-size="9"
+            fill="#8b949e" font-style="italic">external (OCI service)</text>
+
+      <!-- Flow paths -->
+      <path d="M 217,97 L 312,97"   stroke="#a78bfa" stroke-width="2.5" fill="none" marker-end="url(#l2p)" class="d-ant"/>
+      <path d="M 499,97 L 600,97"   stroke="#38bdf8" stroke-width="2.5" fill="none" marker-end="url(#l2b)" class="d-ant"/>
+      <path d="M 129,132 L 129,212" stroke="#f87171" stroke-width="2.5" fill="none" marker-end="url(#l2r)" class="d-ant"/>
+      <path d="M 129,284 L 129,372" stroke="#f87171" stroke-width="2.5" fill="none" marker-end="url(#l2r)" class="d-ant"/>
+
+      <!-- vcenter_app -->
+      <g filter="url(#l2sh)">
+        <rect x="40"  y="62" width="177" height="70" rx="10" fill="#1c2440" stroke="#a78bfa" stroke-width="2"/>
+        <text x="129" y="90"  font-size="22" text-anchor="middle" font-family="serif">🖥️</text>
+        <text x="129" y="109" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700" fill="#e6edf3" text-anchor="middle">vcenter_app</text>
+        <text x="129" y="124" font-family="system-ui,sans-serif" font-size="9" fill="#8b949e" text-anchor="middle">Streamlit · LangGraph · :8501</text>
+      </g>
+
+      <!-- vcenter_mcp_server -->
+      <g filter="url(#l2sh)">
+        <rect x="312" y="62" width="187" height="70" rx="10" fill="#0f1f2e" stroke="#38bdf8" stroke-width="2"/>
+        <text x="405" y="90"  font-size="22" text-anchor="middle" font-family="serif">🔧</text>
+        <text x="405" y="109" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700" fill="#e6edf3" text-anchor="middle">vcenter_mcp_server</text>
+        <text x="405" y="124" font-family="system-ui,sans-serif" font-size="9" fill="#8b949e" text-anchor="middle">FastMCP · pyVmomi · :8080</text>
+      </g>
+
+      <!-- vCenter (external) -->
+      <g filter="url(#l2sh)">
+        <rect x="600" y="62" width="168" height="70" rx="10" fill="#0f1f2e" stroke="#38bdf8" stroke-width="2.5"/>
+        <text x="684" y="90"  font-size="22" text-anchor="middle" font-family="serif">💾</text>
+        <text x="684" y="109" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700" fill="#e6edf3" text-anchor="middle">vCenter</text>
+        <text x="684" y="124" font-family="system-ui,sans-serif" font-size="9" fill="#38bdf8" text-anchor="middle">OCVS SDDC · :443</text>
+      </g>
+
+      <!-- vcenter_postgres -->
+      <g filter="url(#l2sh)">
+        <rect x="40"  y="212" width="177" height="70" rx="10" fill="#2a1515" stroke="#f87171" stroke-width="2"/>
+        <text x="129" y="240" font-size="22" text-anchor="middle" font-family="serif">🗄️</text>
+        <text x="129" y="259" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700" fill="#e6edf3" text-anchor="middle">vcenter_postgres</text>
+        <text x="129" y="274" font-family="system-ui,sans-serif" font-size="9" fill="#f87171" text-anchor="middle">pgvector · PG16 · :5432</text>
+      </g>
+
+      <!-- OCI GenAI (external) -->
+      <g filter="url(#l2sh)">
+        <rect x="40"  y="372" width="187" height="70" rx="10" fill="#2a1515" stroke="#f87171" stroke-width="2.5"/>
+        <text x="133" y="400" font-size="22" text-anchor="middle" font-family="serif">☁️</text>
+        <text x="133" y="419" font-family="system-ui,sans-serif" font-size="11.5" font-weight="700" fill="#e6edf3" text-anchor="middle">OCI GenAI Service</text>
+        <text x="133" y="434" font-family="system-ui,sans-serif" font-size="9" fill="#f87171" text-anchor="middle">Cohere Command A · Instance Principal</text>
+      </g>
+
+      <!-- Step labels -->
+      <text x="264" y="86" font-family="system-ui,sans-serif" font-size="8.5" fill="#8b949e" text-anchor="middle">HTTP/SSE</text>
+      <text x="549" y="86" font-family="system-ui,sans-serif" font-size="8.5" fill="#8b949e" text-anchor="middle">pyVmomi · :443</text>
+      <text x="170" y="172" font-family="system-ui,sans-serif" font-size="8.5" fill="#f87171">vector R/W</text>
+      <text x="170" y="328" font-family="system-ui,sans-serif" font-size="8.5" fill="#f87171">Inst. Principal</text>
+
+      <!-- Badges -->
+      <g class="d-badge" style="animation-delay:.3s"><circle cx="264" cy="97" r="13" fill="#a78bfa"/><text x="264" y="102" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">6</text></g>
+      <g class="d-badge" style="animation-delay:.7s"><circle cx="549" cy="97" r="13" fill="#38bdf8"/><text x="549" y="102" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">7</text></g>
+      <g class="d-badge" style="animation-delay:1.1s"><circle cx="129" cy="172" r="13" fill="#f87171"/><text x="129" y="177" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">8</text></g>
+      <g class="d-badge" style="animation-delay:1.5s"><circle cx="129" cy="328" r="13" fill="#f87171"/><text x="129" y="333" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">9</text></g>
+
+      <!-- Traveling dots P6 -->
+      <circle r="5.5" fill="#a78bfa"><animateMotion dur="1.4s" repeatCount="indefinite" begin="0s"><mpath href="#l2p6"/></animateMotion></circle>
+      <circle r="5.5" fill="#a78bfa"><animateMotion dur="1.4s" repeatCount="indefinite" begin="0.47s"><mpath href="#l2p6"/></animateMotion></circle>
+      <circle r="5.5" fill="#a78bfa"><animateMotion dur="1.4s" repeatCount="indefinite" begin="0.94s"><mpath href="#l2p6"/></animateMotion></circle>
+      <!-- P7 -->
+      <circle r="5.5" fill="#38bdf8"><animateMotion dur="2s" repeatCount="indefinite" begin="0s"><mpath href="#l2p7"/></animateMotion></circle>
+      <circle r="5.5" fill="#38bdf8"><animateMotion dur="2s" repeatCount="indefinite" begin="0.67s"><mpath href="#l2p7"/></animateMotion></circle>
+      <circle r="5.5" fill="#38bdf8"><animateMotion dur="2s" repeatCount="indefinite" begin="1.34s"><mpath href="#l2p7"/></animateMotion></circle>
+      <!-- P8 -->
+      <circle r="5.5" fill="#f87171"><animateMotion dur="1.2s" repeatCount="indefinite" begin="0s"><mpath href="#l2p8"/></animateMotion></circle>
+      <circle r="5.5" fill="#f87171"><animateMotion dur="1.2s" repeatCount="indefinite" begin="0.4s"><mpath href="#l2p8"/></animateMotion></circle>
+      <circle r="5.5" fill="#f87171"><animateMotion dur="1.2s" repeatCount="indefinite" begin="0.8s"><mpath href="#l2p8"/></animateMotion></circle>
+      <!-- P9 -->
+      <circle r="5.5" fill="#f87171"><animateMotion dur="1.5s" repeatCount="indefinite" begin="0.1s"><mpath href="#l2p9"/></animateMotion></circle>
+      <circle r="5.5" fill="#f87171"><animateMotion dur="1.5s" repeatCount="indefinite" begin="0.6s"><mpath href="#l2p9"/></animateMotion></circle>
+      <circle r="5.5" fill="#f87171"><animateMotion dur="1.5s" repeatCount="indefinite" begin="1.1s"><mpath href="#l2p9"/></animateMotion></circle>
+
+      <!-- Legend -->
+      <circle cx="28"  cy="442" r="6" fill="#a78bfa"/>
+      <text x="40"  y="447" font-family="system-ui,sans-serif" font-size="9" fill="#8b949e">Agent Pipeline</text>
+      <circle cx="140" cy="442" r="6" fill="#38bdf8"/>
+      <text x="152" y="447" font-family="system-ui,sans-serif" font-size="9" fill="#8b949e">VMware / vCenter</text>
+      <circle cx="262" cy="442" r="6" fill="#f87171"/>
+      <text x="274" y="447" font-family="system-ui,sans-serif" font-size="9" fill="#8b949e">Oracle Cloud (OCI)</text>
+      <rect x="380" y="435" width="14" height="7" rx="2" fill="none" stroke="#f87171" stroke-width="1.2" stroke-dasharray="4 3" opacity=".7"/>
+      <text x="400" y="447" font-family="system-ui,sans-serif" font-size="9" fill="#8b949e">OCI VM boundary</text>
+    </svg>
+  </div>
+
 </section>
 
 </div><!-- /page -->
