@@ -1,50 +1,44 @@
-# Enterprise vCenter MCP — Oracle Cloud Edition
+# Enterprise vCenter MCP — AllyUI React Edition
 
-> **AI-powered VMware vCenter operations assistant — browser-accessible, always-on, 100% Oracle Cloud.**
+> **AI-powered VMware vCenter operations dashboard — React UI, FastAPI backend, 100% Oracle Cloud.**
 
-Chat with your vCenter environment in plain English from any browser. No Claude Desktop. No laptop dependency. Powered entirely by OCI GenAI, deployed on OCI Compute in the same VCN as your OCVS SDDC.
+Manage your vCenter environment from any browser. Built on the **Ally Avatar-3 UI shell** (AllyOCI v20 design system). Powered by OCI GenAI, deployed on OCI Compute in the same VCN as your OCVS SDDC.
 
 ---
 
-## How It Differs from the Claude Desktop Version (v1)
+## Version History
 
-| | v1 — Claude Desktop | v2 — This Project (Oracle Cloud) |
+| Version | UI | Key Change |
 |---|---|---|
-| **AI Provider** | Anthropic Claude | OCI GenAI — Cohere Command A |
-| **MCP Transport** | stdio (local pipe) | HTTP/SSE (Docker-to-Docker) |
-| **MCP Client** | Claude Desktop (built-in) | `langchain-mcp-adapters` |
-| **Runs on** | Local Machine only | OCI VM, always-on |
-| **Access** | Claude Desktop app | Any browser via `:8501` |
-| **vCenter access** | SSH tunnel from Mac | Direct VCN routing (same OCI VCN as OCVS) |
-| **RAG / Runbooks** | No | Yes — pgvector Docker container |
-| **Multi-user** | No | Yes — Streamlit multi-session |
-| **Data sovereignty** | Leaves OCI → Anthropic | Stays within OCI |
+| v1 | Claude Desktop (stdio) | Local Mac only, Claude Anthropic LLM |
+| v2 | Streamlit | OCI VM, OCI GenAI (Cohere), Docker/SSE |
+| **v3 (current)** | **React — AllyUI shell** | **FastAPI backend replaces Streamlit** |
 
 ---
 
 ## Architecture
 
 ```
-Browser :8501
-    │  HTTPS
+Browser :8000  (React — AllyUI shell)
+    │  fetch /api/*
     ▼
 ┌────────────────────────────────────────────────────────┐
-│  OCI VM — ap-melbourne-1  (Docker bridge: vcenter_net) │
+│  OCI VM — ap-sydney-1  (Docker bridge: vcenter_net)    │
 │                                                         │
-│  ┌─────────────────┐  SSE :8080  ┌──────────────────┐  │
-│  │   vcenter_app   │ ──────────► │ vcenter_mcp_server│  │
-│  │  Streamlit UI   │ ◄────────── │ FastMCP + pyVmomi │  │
-│  │  LangGraph ReAct│             │ 13 vCenter tools  │  │
-│  │  LangChain      │             └────────┬─────────┘  │
-│  └────────┬────────┘                      │ HTTPS :443  │
-│           │ SQL :5432                      ▼             │
-│  ┌────────▼────────┐            [ vCenter — OCVS SDDC ] │
-│  │ vcenter_postgres│            [ Same OCI VCN — direct]│
-│  │ pgvector:pg16   │                                     │
-│  └─────────────────┘                                     │
+│  ┌──────────────────────┐  SSE :8080  ┌─────────────┐  │
+│  │     vcenter_app      │ ──────────► │ vcenter_mcp │  │
+│  │  FastAPI :8000       │ ◄────────── │ FastMCP +   │  │
+│  │  LangGraph ReAct     │             │ pyVmomi     │  │
+│  │  LangChain agent     │             │ 13 tools    │  │
+│  │  serves React build  │             └──────┬──────┘  │
+│  └──────────┬───────────┘                    │ :443    │
+│             │ SQL :5432              [ vCenter — OCVS ] │
+│  ┌──────────▼───────────┐           [ Same OCI VCN   ] │
+│  │  vcenter_postgres    │                               │
+│  │  pgvector:pg16       │                               │
+│  └──────────────────────┘                               │
 └────────────────────────────────────────────────────────┘
-    │
-    ▼  HTTPS (OCI GenAI API)
+    │  HTTPS
 [ OCI GenAI — ap-hyderabad-1 ]
   Cohere Command A  (LLM)
   Cohere Embed Multilingual  (embeddings)
@@ -52,20 +46,48 @@ Browser :8501
 
 ---
 
-## What's MCP Here?
+## UI — AllyUI Shell (Ally Avatar-3)
 
-**MCP Server** (`mcp_server/server.py`)
-- Runs in the `vcenter_mcp_server` container on port 8080
-- Uses **FastMCP** with **HTTP/SSE transport** (not stdio)
-- Wraps 13 pyVmomi vCenter API calls as callable "tools"
-- Waits for SSE connections from the app container
+The React dashboard inherits the **AllyOCI v20 design system** — deep navy ops-console aesthetic.
 
-**MCP Client** (`app/agent.py`)
-- Runs inside the `vcenter_app` container
-- Uses `langchain-mcp-adapters` `MultiServerMCPClient`
-- On startup: connects to `http://mcp_server:8080/sse`, fetches all 13 tool schemas
-- Converts them to LangChain tools and passes them to the LangGraph ReAct agent
-- The LLM decides which tool to call based on tool descriptions — no vCenter logic in the app
+| Page | Description |
+|---|---|
+| **Home** | Summary tiles — VM count, hosts, alarms, MCP tools |
+| **Command Center** | 6-tab live dashboard |
+| **AI Search** | Grounded local search over vSphere datasets |
+| **Palette** | AllyOCI colour tokens |
+
+### Command Center tabs
+
+| Tab | Live API endpoint | Data |
+|---|---|---|
+| VM Estate | `GET /api/vms` | All VMs — power state, CPU, mem, tools |
+| Compute / Hosts | `GET /api/hosts` | ESXi hosts — CPU%, mem%, VM count |
+| Storage | `GET /api/datastores` | Datastores — capacity, free, type |
+| Network | `GET /api/networks` | Port groups, VLAN, DVS |
+| Alarms | `GET /api/alarms` | Active vSphere alarms |
+| MCP Dashboard | static | MCP server health + tool telemetry |
+
+---
+
+## FastAPI Backend (`app/api.py`)
+
+Replaces Streamlit. Bridges React UI ↔ MCP server ↔ vCenter.
+
+| Endpoint | MCP Tool | Description |
+|---|---|---|
+| `GET /api/summary` | `get_inventory_summary` | High-level counts |
+| `GET /api/vms` | `list_vms` | All VM inventory |
+| `GET /api/hosts` | `list_hosts` | All ESXi hosts |
+| `GET /api/datastores` | `list_datastores` | Storage |
+| `GET /api/networks` | `list_networks` | Networks |
+| `GET /api/alarms` | `get_alarms` | Active alarms |
+| `GET /api/host/{name}/performance` | `get_host_performance` | Host CPU/mem |
+| `GET /api/vm/{name}/snapshots` | `list_vm_snapshots` | VM snapshots |
+| `POST /api/ask` | LangChain agent | Natural language → vCenter + RAG |
+| `GET /healthz` | — | Liveness probe |
+
+In production, FastAPI also serves the React build from `/app/ui_dist`.
 
 ---
 
@@ -73,11 +95,11 @@ Browser :8501
 
 | Container | Image | Port | Purpose |
 |---|---|---|---|
-| `vcenter_postgres` | `pgvector/pgvector:pg16` | 5432 (internal) | Vector store for RAG over runbooks |
-| `vcenter_mcp_server` | built from `mcp_server/` | 8080 | MCP server — 13 vCenter tools via pyVmomi |
-| `vcenter_app` | built from `app/` | **8501** | Streamlit UI + LangGraph agent + RAG |
+| `vcenter_postgres` | `pgvector/pgvector:pg16` | 5432 (internal) | pgvector RAG store |
+| `vcenter_mcp_server` | built from `mcp_server/` | 8080 | 13 vCenter MCP tools |
+| `vcenter_app` | built from `app/` | **8000** | FastAPI + React build |
 
-Start order: `vcenter_postgres` → healthy → `vcenter_mcp_server` → healthy → `vcenter_app` starts.
+Start order: postgres → healthy → mcp_server → healthy → app.
 
 ---
 
@@ -88,8 +110,8 @@ Start order: `vcenter_postgres` → healthy → `vcenter_mcp_server` → healthy
 | `list_vms` | All VMs — power state, CPU, memory, IP |
 | `get_vm_details` | Detailed info for a specific VM |
 | `power_on_vm` | Power on a VM |
-| `power_off_vm` | Power off (requires `confirm=True`) |
-| `restart_vm` | Restart (requires `confirm=True`) |
+| `power_off_vm` | Power off (`confirm=True` required) |
+| `restart_vm` | Restart (`confirm=True` required) |
 | `list_hosts` | ESXi hosts — state, CPU, memory, model |
 | `get_host_performance` | CPU/memory utilisation for a host |
 | `list_datastores` | Storage capacity and free space |
@@ -106,34 +128,38 @@ Start order: `vcenter_postgres` → healthy → `vcenter_mcp_server` → healthy
 ```
 Enterprise_vCenter_MCP/
 ├── docker-compose.yml          3-container orchestration
-├── .env.example                copy → .env, fill in secrets (never committed)
-├── plan_v1.html                original planning doc
-├── plan_v2.html                full architecture explainer (open in browser)
+├── .env.example                copy → .env, fill in secrets
 │
 ├── mcp_server/
-│   ├── server.py               MCP server — 13 vCenter tools, FastMCP SSE :8080
-│   ├── Dockerfile              Python 3.12-slim
-│   └── requirements.txt
-│
-├── app/
-│   ├── streamlit_app.py        Entry point — Streamlit chat UI
-│   ├── agent.py                LangGraph ReAct agent, MCP client, tool assembly
-│   ├── oci_llm.py              OCI GenAI LLM (Cohere Command A) + embeddings
-│   ├── config.py               All settings read from environment variables
-│   ├── assets/
-│   │   └── oracle_logo.png     Sidebar logo
-│   ├── rag/
-│   │   ├── ingest.py           PDF/MD → chunk → embed → pgvector pipeline
-│   │   └── retriever.py        pgvector similarity search → LangChain Tool
+│   ├── server.py               13 vCenter tools, FastMCP SSE :8080
 │   ├── Dockerfile
 │   └── requirements.txt
 │
-├── runbooks/                   Drop PDF/MD operational docs here, then ingest
+├── app/
+│   ├── api.py                  FastAPI backend — REST endpoints + serves React
+│   ├── agent.py                LangGraph ReAct agent + MCP client
+│   ├── oci_llm.py              OCI GenAI (Cohere Command A) + embeddings
+│   ├── config.py               All settings from environment variables
+│   ├── streamlit_app.py        Legacy Streamlit UI (kept for reference)
+│   ├── rag/
+│   │   ├── ingest.py           PDF/MD → chunk → embed → pgvector
+│   │   └── retriever.py        pgvector search → LangChain Tool
+│   ├── Dockerfile
+│   └── requirements.txt
+│
+├── ui/                         React — AllyUI shell
+│   ├── vcenter-dashboard.jsx   Main component — live data + AllyUI design
+│   ├── vite.config.js          Proxy /api → :8000 in dev; build → app/ui_dist
+│   ├── src/
+│   │   └── App.jsx             Mounts VCenterDashboard
+│   └── package.json
+│
+├── runbooks/                   Drop PDF/MD ops docs here, then ingest
 └── scripts/
-    ├── deploy_oci.sh           Provision OCI: NSG/SL, VM, IAM Dynamic Group
-    ├── setup_vm.sh             Bootstrap VM: Docker CE, Compose, firewall, up
-    ├── ingest_docs.sh          Run ingest pipeline inside running app container
-    └── pg_init.sql             CREATE EXTENSION vector — runs on first PG start
+    ├── deploy_oci.sh           Provision OCI: NSG, VM, IAM
+    ├── setup_vm.sh             Bootstrap VM: Docker, Compose, firewall
+    ├── ingest_docs.sh          Run RAG ingest pipeline
+    └── pg_init.sql             CREATE EXTENSION vector
 ```
 
 ---
@@ -141,34 +167,32 @@ Enterprise_vCenter_MCP/
 ## Deployment
 
 ### 1. Prerequisites
-- OCI CLI configured (`~/.oci/config`)
-- SSH key at `~/.ssh/id_rsa.pub`
-- Existing OCI VCN in the same region as your OCVS SDDC
+- OCI CLI configured (`~/.oci/config`) or run on OCI VM with instance principal
+- Docker + Docker Compose on the VM
+- OCI VM in same VCN as OCVS SDDC (port 443 to vCenter)
+- OCI GenAI enabled in your compartment (ap-hyderabad-1)
 
-### 2. Provision OCI infrastructure
+### 2. Clone & configure
 ```bash
-# Edit the EXISTING RESOURCES section at the top with your OCIDs
-vi scripts/deploy_oci.sh
-chmod +x scripts/deploy_oci.sh && ./scripts/deploy_oci.sh
-```
-Creates: security list (ports 22 + 8501), compute VM, IAM Dynamic Group + Policy.
-
-### 3. Configure environment
-```bash
+git clone <repo-url>
+cd Enterprise_vCenter_MCP
 cp .env.example .env
-# Fill in: VCENTER_*, COMPARTMENT_ID, PG_PASSWORD, PG_CONNECTION_STRING
+# Fill in: VCENTER_HOST, VCENTER_USERNAME, VCENTER_PASSWORD
+#          COMPARTMENT_ID, PG_PASSWORD, PG_CONNECTION_STRING
 ```
 
-### 4. Bootstrap the VM
+### 3. Build React UI
 ```bash
-# Copy repo to VM
-scp -r . opc@<VM_IP>:~/Enterprise_vCenter_MCP
-
-# SSH in and run bootstrap
-ssh opc@<VM_IP>
-bash ~/Enterprise_vCenter_MCP/scripts/setup_vm.sh
+cd ui
+npm install
+npm run build        # outputs to app/ui_dist
+cd ..
 ```
-Installs Docker CE, opens firewall port 8501, runs `docker compose up -d`.
+
+### 4. Start containers
+```bash
+docker compose up -d --build
+```
 
 ### 5. Ingest runbooks (optional)
 ```bash
@@ -178,29 +202,39 @@ Installs Docker CE, opens firewall port 8501, runs `docker compose up -d`.
 
 ### 6. Access
 ```
-http://<VM_IP>:8501
+http://<VM_IP>:8000
+```
+
+---
+
+## Local Development (React + FastAPI)
+
+```bash
+# Terminal 1 — FastAPI backend (needs MCP server running)
+cd app
+pip install -r requirements.txt
+uvicorn api:app --reload --port 8000
+
+# Terminal 2 — React dev server (proxies /api → :8000)
+cd ui
+npm install
+npm run dev          # http://localhost:5173
 ```
 
 ---
 
 ## OCI Auth
 
-On the VM, **Instance Principal** auth is used — no API keys stored anywhere.
-The VM's identity is granted GenAI access via IAM Dynamic Group + Policy (created by `deploy_oci.sh`).
-
-For local development: set `OCI_AUTH_TYPE=api_key` in `.env` and configure `~/.oci/config`.
+On the VM: **Instance Principal** — no API keys stored anywhere.
+Local dev: set `OCI_AUTH_TYPE=api_key` in `.env` + configure `~/.oci/config`.
 
 ---
 
-## vCenter Connectivity
+## OCI DevOps Repository
 
-The OCI VM is deployed into the **same VCN as the OCVS SDDC** — vCenter is reachable over the VCN's internal routing with no VPN or FastConnect needed.
-
-For other vCenter locations:
-
-| vCenter source | Connectivity |
+| | |
 |---|---|
-| OCVS (same region) | VCN-internal routing (this project's default) |
-| On-premises | OCI Site-to-Site VPN or FastConnect |
-| AWS VMware (VMC) | AWS–OCI interconnect |
-| Azure VMware | Azure–OCI interconnect |
+| **Region** | ap-sydney-1 |
+| **Compartment** | OCVS |
+| **Project** | vcenter-mcp-allyui |
+| **Repo OCID** | `ocid1.devopsrepository.oc1.ap-sydney-1.amaaaaaakwetmsaadwgn4qyhqhojkzbhf3p6hznpspqje5izpdblskmvkrvq` |

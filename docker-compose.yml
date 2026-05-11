@@ -47,8 +47,9 @@ services:
       retries: 5
       start_period: 20s
 
-  # ── Streamlit App ──────────────────────────────────────────────────────────
-  # LangChain agent + RAG + Streamlit UI
+  # ── FastAPI Backend + React UI ─────────────────────────────────────────────
+  # LangChain agent + RAG + FastAPI REST API
+  # React UI (AllyUI shell) served from /app/ui_dist or via Vite dev server
   app:
     build:
       context: ./app
@@ -80,9 +81,9 @@ services:
       # Runbooks directory (mounted below)
       RUNBOOKS_DIR:       /runbooks
     ports:
-      - "8501:8501"
+      - "8000:8000"   # FastAPI — REST API + serves React build in production
     volumes:
-      - ./runbooks:/runbooks:ro   # read-only — team drops PDFs/MDs here on the host
+      - ./runbooks:/runbooks:ro
     networks:
       - vcenter_net
 
