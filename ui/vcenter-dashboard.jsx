@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 
 // API base — empty string = same origin (production via FastAPI)
 // In Vite dev, proxy /api → http://localhost:8000 via vite.config.js
@@ -816,49 +816,98 @@ function routeGroundedSearch(query) {
 }
 
 function AISearchPage() {
-  const [query, setQuery] = useState("Show active alarms and VM estate summary");
-  const result = useMemo(() => routeGroundedSearch(query), [query]);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput]       = useState("");
+  const [loading, setLoading]   = useState(false);
+  const bottomRef               = useRef(null);
   const suggestions = [
     "Show active alarms and warning count",
     "Summarize VM estate — powered on vs off",
     "Which datastores are above 70% capacity?",
-    "Show MCP tool telemetry and error rates",
     "ESXi host CPU and memory usage",
+    "List all powered off VMs",
     "Which network port groups need attention?",
   ];
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  async function send(text) {
+    const q = (text || input).trim();
+    if (!q) return;
+    setInput("");
+    const history = messages.map(m => ({ role: m.role, content: m.text }));
+    setMessages(prev => [...prev, { role: "user", text: q }]);
+    setLoading(true);
+    try {
+      const res  = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: q, history }),
+      });
+      const data = await res.json();
+      setMessages(prev => [...prev, { role: "assistant", text: data.answer || data.detail || "No response." }]);
+    } catch (e) {
+      setMessages(prev => [...prev, { role: "assistant", text: `Error: ${e.message}` }]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <div className="content-page">
+    <div className="content-page" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div className="pg-head">
         <div>
           <div className="pg-title">AI Search</div>
-          <div className="pg-sub">
-            Grounded local routing over vSphere VM, host, storage, network, alarm, and MCP datasets.
-          </div>
+          <div className="pg-sub">Live vCenter intelligence — OCI GenAI (Cohere) + 13 MCP tools.</div>
         </div>
       </div>
-      <div className="chat-shell">
-        <div className="card">
-          <div className="stl">Query</div>
-          <div className="field">
-            <textarea value={query} onChange={e => setQuery(e.target.value)} placeholder="Ask about VMs, hosts, storage, alarms, or MCP tools." />
-          </div>
-          <div className="stl" style={{ marginTop: 18 }}>Suggestions</div>
+
+      {messages.length === 0 && (
+        <div style={{ padding: "0 0 18px" }}>
+          <div className="stl" style={{ marginBottom: 10 }}>Suggestions</div>
           <div className="pills">
-            {suggestions.map(item => (
-              <button key={item} className="pill" onClick={() => setQuery(item)}>{item}</button>
+            {suggestions.map(s => (
+              <button key={s} className="pill" onClick={() => send(s)}>{s}</button>
             ))}
           </div>
         </div>
-        <div className={`answer-card${result.noData ? " no-data" : ""}`}>
-          <div className="stl">AI Search Response</div>
-          <div style={{ fontSize: 18, fontWeight: 850, marginBottom: 10 }}>{result.title}</div>
-          <div className="pre">{result.answer}</div>
-          <div style={{ marginTop: 16 }}>
-            {result.sources.length
-              ? result.sources.map(src => <span className="source-chip" key={src}>source: {src}</span>)
-              : <span className="source-chip">no local source matched</span>}
+      )}
+
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingBottom: 16 }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{
+            alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+            maxWidth: "80%",
+            background: m.role === "user" ? "var(--accent, #4f8ef7)" : "var(--card-bg, #1a2235)",
+            color: "#e8eaf0",
+            borderRadius: 10,
+            padding: "10px 16px",
+            fontSize: 14,
+            whiteSpace: "pre-wrap",
+            lineHeight: 1.6,
+          }}>{m.text}</div>
+        ))}
+        {loading && (
+          <div style={{ alignSelf: "flex-start", color: "#7a8aaa", fontSize: 13, padding: "6px 12px" }}>
+            Thinking…
           </div>
-        </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      <div style={{ display: "flex", gap: 10, paddingTop: 8 }}>
+        <textarea
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (!loading) send(); } }}
+          placeholder="Ask about your vCenter environment… (Enter to send)"
+          rows={2}
+          style={{ flex: 1, resize: "none", borderRadius: 8, padding: "10px 14px", fontSize: 14, background: "var(--card-bg, #1a2235)", color: "#e8eaf0", border: "1px solid #2e3a52" }}
+        />
+        <button onClick={() => send()} disabled={loading || !input.trim()}
+          style={{ padding: "0 24px", borderRadius: 8, background: "var(--accent, #4f8ef7)", color: "#fff", border: "none", cursor: "pointer", fontWeight: 700 }}>
+          Send
+        </button>
       </div>
     </div>
   );

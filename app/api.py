@@ -59,6 +59,9 @@ async def _call_tool(tool_name: str, args: dict = {}) -> dict | list:
     if not tool:
         raise HTTPException(status_code=503, detail=f"MCP tool '{tool_name}' not found")
     raw = await tool.ainvoke(args)
+    # LangChain MCP adapter returns list of content blocks: [{"type":"text","text":"..."}]
+    if isinstance(raw, list) and raw and isinstance(raw[0], dict) and "text" in raw[0]:
+        raw = raw[0]["text"]
     try:
         return json.loads(raw) if isinstance(raw, str) else raw
     except Exception:

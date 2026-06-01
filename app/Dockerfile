@@ -1,8 +1,11 @@
-FROM python:3.12-slim
+FROM node:20-slim AS ui-builder
+WORKDIR /ui
+COPY ui/package*.json ./
+RUN npm ci
+COPY ui/ ./
+RUN npm run build
 
-# System dependencies:
-#   gcc/g++     — needed by psycopg and other C-extension packages
-#   libpq-dev   — needed by psycopg (PostgreSQL client library)
+FROM python:3.12-slim
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
@@ -11,10 +14,11 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY app/ .
+COPY --from=ui-builder /app/ui_dist ./ui_dist
 
 EXPOSE 8000
 

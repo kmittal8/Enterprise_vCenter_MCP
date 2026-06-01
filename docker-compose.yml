@@ -52,8 +52,8 @@ services:
   # React UI (AllyUI shell) served from /app/ui_dist or via Vite dev server
   app:
     build:
-      context: ./app
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: app/Dockerfile
     container_name: vcenter_app
     restart: unless-stopped
     depends_on:

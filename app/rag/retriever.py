@@ -1,11 +1,8 @@
 """
 RAG retriever — wraps OCI PostgreSQL PGVector as a LangChain Tool.
-
-The vectorstore connection is cached at the Streamlit server-process level
-(@st.cache_resource) so all user sessions share one DB connection pool.
 """
 
-import streamlit as st
+from functools import lru_cache
 from langchain_postgres import PGVector
 from langchain_core.tools import Tool
 from langchain_core.documents import Document
@@ -14,7 +11,7 @@ from oci_llm import build_embeddings
 from config import PG_CONNECTION_STRING, PG_COLLECTION_NAME, RAG_TOP_K
 
 
-@st.cache_resource
+@lru_cache(maxsize=1)
 def _get_vectorstore() -> PGVector:
     """
     Open the PGVector collection once per server process.
