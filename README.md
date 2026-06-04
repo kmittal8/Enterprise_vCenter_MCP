@@ -2,7 +2,7 @@
 
 > **AI-powered VMware vCenter operations dashboard — React UI, FastAPI backend**
 
-Manage your vCenter environment from any browser. Built on the **Ally Avatar-3 UI shell** (AllyOCI v20 design system). Powered by OCI GenAI, deployed on OCI Compute in the same VCN as your OCVS SDDC.
+Manage your vCenter environment from any browser. Built on the **REACT**. Powered by OCI GenAI, deployed on OCI Compute in the same VCN as your OCVS SDDC.
 
 ---
 
@@ -12,14 +12,14 @@ Manage your vCenter environment from any browser. Built on the **Ally Avatar-3 U
 |---|---|---|
 | v1 | Claude Desktop (stdio) | Local Mac only, Claude Anthropic LLM |
 | v2 | Streamlit | OCI VM, OCI GenAI (Cohere), Docker/SSE |
-| **v3 (current)** | **React — AllyUI shell** | **FastAPI backend replaces Streamlit** |
+| **v3 (current)** | **React — shell** | **FastAPI backend replaces Streamlit** |
 
 ---
 
 ## Architecture
 
 ```
-Browser :8000  (React — AllyUI shell)
+Browser :8000  (React —  shell)
     │  fetch /api/*
     ▼
 ┌────────────────────────────────────────────────────────┐
@@ -46,7 +46,7 @@ Browser :8000  (React — AllyUI shell)
 
 ---
 
-## UI — AllyUI Shell (Ally Avatar-3)
+## UI —  Shell (Ally Avatar-3)
 
 The React dashboard inherits the **AllyOCI v20 design system** — deep navy ops-console aesthetic.
 
@@ -147,8 +147,8 @@ Enterprise_vCenter_MCP/
 │   ├── Dockerfile
 │   └── requirements.txt
 │
-├── ui/                         React — AllyUI shell
-│   ├── vcenter-dashboard.jsx   Main component — live data + AllyUI design
+├── ui/                         React —  shell
+│   ├── vcenter-dashboard.jsx   Main component — live data +  design
 │   ├── vite.config.js          Proxy /api → :8000 in dev; build → app/ui_dist
 │   ├── src/
 │   │   └── App.jsx             Mounts VCenterDashboard
@@ -236,5 +236,5 @@ Local dev: set `OCI_AUTH_TYPE=api_key` in `.env` + configure `~/.oci/config`.
 |---|---|
 | **Region** | ap-sydney-1 |
 | **Compartment** | OCVS |
-| **Project** | vcenter-mcp-allyui |
+| **Project** | vcenter-mcp- |
 | **Repo OCID** | `ocid1.devopsrepository.oc1.ap-sydney-1.amaaaaaakwetmsaadwgn4qyhqhojkzbhf3p6hznpspqje5izpdblskmvkrvq` |
