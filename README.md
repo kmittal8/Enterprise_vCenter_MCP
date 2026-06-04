@@ -1,6 +1,6 @@
-# Enterprise vCenter MCP — AllyUI React Edition
+# Enterprise vCenter MCP — 
 
-> **AI-powered VMware vCenter operations dashboard — React UI, FastAPI backend, 100% Oracle Cloud.**
+> **AI-powered VMware vCenter operations dashboard — React UI, FastAPI backend**
 
 Manage your vCenter environment from any browser. Built on the **Ally Avatar-3 UI shell** (AllyOCI v20 design system). Powered by OCI GenAI, deployed on OCI Compute in the same VCN as your OCVS SDDC.
 
